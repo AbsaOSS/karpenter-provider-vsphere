@@ -47,6 +47,8 @@ spec:
                 type: string
               datastore:
                 type: string
+              dc:
+                type: string
               image:
                 type: string
               instanceTypes:

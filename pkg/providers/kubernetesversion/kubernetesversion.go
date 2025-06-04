@@ -40,7 +40,8 @@ func (p *kubernetesVersionProvider) KubeServerVersion(ctx context.Context) (stri
 	if err != nil {
 		return "", err
 	}
-	version := strings.TrimPrefix(serverVersion.GitVersion, "v") // v1.24.9 -> 1.24.9
+	version := strings.TrimPrefix(serverVersion.GitVersion, "v") // v1.32.9 -> 1.32.9
+	version = strings.TrimSuffix(version, "+rke2r1")             // 1.32.9+rke2r1 -> 1.32.9
 	p.kubernetesVersionCache.SetDefault(kubernetesVersionCacheKey, version)
 	if p.cm.HasChanged("kubernetes-version", version) {
 		log.FromContext(ctx).WithValues("kubernetes-version", version).V(1).Info("discovered kubernetes version")

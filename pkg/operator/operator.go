@@ -2,6 +2,7 @@ package operator
 
 import (
 	"context"
+	"time"
 
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis"
 	"github.com/pkg/errors"
@@ -13,6 +14,7 @@ import (
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/instance"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/kubernetesversion"
 
+	"github.com/patrickmn/go-cache"
 	"github.com/samber/lo"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/session"
@@ -43,10 +45,15 @@ func NewOperator(ctx context.Context, operator *operator.Operator) (context.Cont
 	inClusterConfig := config.GetConfigOrDie()
 	inClusterClient := kubernetes.NewForConfigOrDie(inClusterConfig)
 
+	kubernetesVersionProvider := kubernetesversion.NewKubernetesVersionProvider(
+		inClusterClient,
+		cache.New(15*time.Minute, 1*time.Minute),
+	)
 	return ctx, &Operator{
 		Operator:                     operator,
+		KubernetesVersionProvider:    kubernetesVersionProvider,
 		InClusterKubernetesInterface: inClusterClient,
-		InstanceProvider:             instance.NewDefaultProvider(vsphereClient),
+		InstanceProvider:             instance.NewDefaultProvider(vsphereClient, options.FromContext(ctx).ClusterName),
 	}
 }
 

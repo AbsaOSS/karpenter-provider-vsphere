@@ -9,11 +9,13 @@ import (
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/instance"
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/utils"
 	"github.com/awslabs/operatorpkg/status"
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -90,13 +92,43 @@ func (c *CloudProvider) Create(ctx context.Context, nodeClaim *karpv1.NodeClaim)
 	if len(instanceTypes) == 0 {
 		return nil, cloudprovider.NewInsufficientCapacityError(fmt.Errorf("all requested instance types were unavailable during launch"))
 	}
-	_, err = c.instanceProvider.BeginCreate(ctx, nodeClass, nodeClaim, instanceTypes)
+	instance, err := c.instanceProvider.Create(ctx, nodeClass, nodeClaim, instanceTypes)
 	if err != nil {
 		return nil, cloudprovider.NewCreateError(fmt.Errorf("creating instance failed, %w", err), CreateInstanceFailedReason, err.Error())
 	}
-	return &karpv1.NodeClaim{}, nil
+	claim := instanceToNodeClaim(instance, instanceTypes[0])
+
+	return claim, nil
 }
 
+//nolint:gocyclo
+func instanceToNodeClaim(i *instance.Instance, instanceType *cloudprovider.InstanceType) *karpv1.NodeClaim {
+	nodeClaim := &karpv1.NodeClaim{}
+	labels := map[string]string{}
+	annotations := map[string]string{}
+
+	if instanceType != nil {
+		labels = utils.GetAllSingleValuedRequirementLabels(instanceType)
+
+		resourceFilter := func(name corev1.ResourceName, value resource.Quantity) bool {
+			return !resources.IsZero(value)
+		}
+
+		nodeClaim.Status.Capacity = lo.PickBy(instanceType.Capacity, resourceFilter)
+		nodeClaim.Status.Allocatable = lo.PickBy(instanceType.Allocatable(), resourceFilter)
+	}
+	//TODO: Figure out TopologyZone label
+	//labels[corev1.LabelTopologyZone]
+	nodeClaim.Name = i.Name
+	nodeClaim.Labels = labels
+	nodeClaim.Annotations = annotations
+	nodeClaim.CreationTimestamp = metav1.Time{Time: i.LaunchTime}
+
+	nodeClaim.Status.ProviderID = fmt.Sprintf("vsphere:///%s", i.ID)
+	nodeClaim.Status.ImageID = i.Image
+
+	return nodeClaim
+}
 func (c *CloudProvider) Get(ctx context.Context, instance string) (*karpv1.NodeClaim, error) {
 	return &karpv1.NodeClaim{}, nil
 }
@@ -117,9 +149,13 @@ func (c *CloudProvider) RepairPolicies() []cloudprovider.RepairPolicy {
 }
 
 func (c *CloudProvider) GetInstanceTypes(ctx context.Context, pool *karpv1.NodePool) ([]*cloudprovider.InstanceType, error) {
-	//	pool, err := c.resolveNodeClassFromNodePool(ctx, pool)
+	nodeClass, err := c.resolveNodeClassFromNodePool(ctx, pool)
+	if err != nil {
+		return nil, fmt.Errorf("resolving node class, %w", err)
+	}
+	instanceTypes := instanceTypesFromNodeClass(nodeClass)
 
-	return []*cloudprovider.InstanceType{}, nil
+	return instanceTypes, err
 }
 
 func (c *CloudProvider) IsDrifted(ctx context.Context, claim *karpv1.NodeClaim) (cloudprovider.DriftReason, error) {
@@ -127,7 +163,7 @@ func (c *CloudProvider) IsDrifted(ctx context.Context, claim *karpv1.NodeClaim) 
 	return NodeClassDrift, nil
 }
 
-func (c *CloudProvider) resolveInstanceTypes(nodeClaim *karpv1.NodeClaim, nodeClass *v1alpha1.VsphereNodeClass) ([]*cloudprovider.InstanceType, error) {
+func instanceTypesFromNodeClass(nodeClass *v1alpha1.VsphereNodeClass) []*cloudprovider.InstanceType {
 	instanceTypes := []*cloudprovider.InstanceType{}
 	for n, t := range nodeClass.Spec.InstanceTypes {
 		instanceType := &cloudprovider.InstanceType{
@@ -143,6 +179,7 @@ func (c *CloudProvider) resolveInstanceTypes(nodeClaim *karpv1.NodeClaim, nodeCl
 				corev1.ResourcePods:             resource.MustParse(t.MaxPods),
 				corev1.ResourceEphemeralStorage: resource.MustParse(t.Storage),
 			},
+			Overhead: &cloudprovider.InstanceTypeOverhead{},
 			Offerings: []*cloudprovider.Offering{
 				{
 					Requirements: scheduling.NewRequirements(
@@ -154,7 +191,10 @@ func (c *CloudProvider) resolveInstanceTypes(nodeClaim *karpv1.NodeClaim, nodeCl
 		}
 		instanceTypes = append(instanceTypes, instanceType)
 	}
-
+	return instanceTypes
+}
+func (c *CloudProvider) resolveInstanceTypes(nodeClaim *karpv1.NodeClaim, nodeClass *v1alpha1.VsphereNodeClass) ([]*cloudprovider.InstanceType, error) {
+	instanceTypes := instanceTypesFromNodeClass(nodeClass)
 	reqs := scheduling.NewNodeSelectorRequirementsWithMinValues(nodeClaim.Spec.Requirements...)
 	return lo.Filter(instanceTypes, func(i *cloudprovider.InstanceType, _ int) bool {
 		return reqs.Compatible(i.Requirements, scheduling.AllowUndefinedWellKnownLabels) == nil &&
