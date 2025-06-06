@@ -5,14 +5,13 @@ import (
 	"fmt"
 
 	v1alpha1 "github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
-	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/vim25/types"
 )
 
 const ethCardType = "vmxnet3"
 
-func (d *DefaultProvider) getNetworkSpecs(ctx context.Context, networkName object.NetworkReference, devices object.VirtualDeviceList) (types.BaseVirtualDeviceConfigSpec, error) {
+func (d *DefaultProvider) getNetworkSpecs(ctx context.Context, networkName object.NetworkReference, devices object.VirtualDeviceList) ([]types.BaseVirtualDeviceConfigSpec, error) {
 
 	deviceSpecs := []types.BaseVirtualDeviceConfigSpec{}
 
@@ -29,11 +28,11 @@ func (d *DefaultProvider) getNetworkSpecs(ctx context.Context, networkName objec
 
 	backing, err := networkName.EthernetCardBackingInfo(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("unable to create new ethernet card", err)
+		return nil, fmt.Errorf("unable to create new ethernet card: %v", err)
 	}
 	dev, err := object.EthernetCardTypes().CreateEthernetCard(ethCardType, backing)
 	if err != nil {
-		return nil, fmt.Errorf("unable to create new ethernet card", err)
+		return nil, fmt.Errorf("unable to create new ethernet card: %v", err)
 	}
 
 	// Get the actual NIC object. This is safe to assert without a check
@@ -45,24 +44,19 @@ func (d *DefaultProvider) getNetworkSpecs(ctx context.Context, networkName objec
 	// generated when the device is created.
 	nic.Key = key
 
-	return &types.VirtualDeviceConfigSpec{
+	return append(deviceSpecs, &types.VirtualDeviceConfigSpec{
 		Device:    dev,
 		Operation: types.VirtualDeviceConfigSpecOperationAdd,
-	}, err
+	}), err
 }
+
 func (p *DefaultProvider) GetDeviceSpec(ctx context.Context, class *v1alpha1.VsphereNodeClass, diskSize int64) ([]types.BaseVirtualDeviceConfigSpec, error) {
 	var deviceChange []types.BaseVirtualDeviceConfigSpec
-	finder := find.NewFinder(p.vsphereClient.Client, true)
-	dc, err := finder.Datacenter(ctx, class.Spec.DC)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find datacenter: %w", err)
-	}
-	finder.SetDatacenter(dc)
-	vmTemplate, err := finder.VirtualMachine(ctx, class.Spec.Image)
+	vmTemplate, err := p.VsphereInfo.Finder.VirtualMachine(ctx, class.Spec.Image)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find VM template: %w", err)
 	}
-	network, err := finder.Network(ctx, class.Spec.Network)
+	network, err := p.VsphereInfo.Finder.Network(ctx, class.Spec.Network)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find network: %w", err)
 	}
@@ -73,7 +67,7 @@ func (p *DefaultProvider) GetDeviceSpec(ctx context.Context, class *v1alpha1.Vsp
 	}
 	disks := devList.SelectByType((*types.VirtualDisk)(nil))
 	if len(disks) == 0 {
-		return nil, fmt.Errorf("Invalid disk count: %d", len(disks))
+		return nil, fmt.Errorf("invalid disk count: %d", len(disks))
 	}
 
 	// There is at least one disk
@@ -81,18 +75,21 @@ func (p *DefaultProvider) GetDeviceSpec(ctx context.Context, class *v1alpha1.Vsp
 	primaryCloneCapacityKB := GiToKb(diskSize)
 	primaryDiskConfigSpec, err := getDiskConfigSpec(primaryDisk, primaryCloneCapacityKB)
 	if err != nil {
-		return nil, fmt.Errorf("Error getting disk config spec for primary disk: %v", err)
+		return nil, fmt.Errorf("error getting disk config spec for primary disk: %v", err)
 	}
 
 	netSpec, err := p.getNetworkSpecs(ctx, network, devList)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get network specs: %w", err)
 	}
-	return append(deviceChange, primaryDiskConfigSpec, netSpec), nil
+	return append(deviceChange, append(netSpec, primaryDiskConfigSpec)...), nil
 
 }
 func GiToKb(size int64) int64 {
 	return size * 1024 * 1024
+}
+func GiToMb(size int64) int64 {
+	return size * 1024
 }
 
 func getDiskConfigSpec(disk *types.VirtualDisk, diskCloneCapacityKB int64) (types.BaseVirtualDeviceConfigSpec, error) {

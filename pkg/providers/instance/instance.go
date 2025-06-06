@@ -1,48 +1,66 @@
 package instance
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
+	"html/template"
+	"strings"
 	"time"
 
 	v1alpha1 "github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
+	"github.com/vmware/govmomi/vapi/tags"
 	models "github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	karpv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 	corecloudprovider "sigs.k8s.io/karpenter/pkg/cloudprovider"
 )
 
 type Provider interface {
-	Create(context.Context, *v1alpha1.VsphereNodeClass, *karpv1.NodeClaim, []*corecloudprovider.InstanceType) (*Instance, error)
+	Create(context.Context, *v1alpha1.VsphereNodeClass, *karpv1.NodeClaim, []*corecloudprovider.InstanceType, string) (*Instance, error)
 	Get(context.Context, string) (*models.VirtualMachine, error)
-	List(context.Context) ([]*models.VirtualMachine, error)
+	List(context.Context) ([]*Instance, error)
 	Delete(context.Context, string) error
 	Update(context.Context, string, *models.VirtualMachine) error
 }
 
 var _ Provider = (*DefaultProvider)(nil)
 
-type DefaultProvider struct {
-	vsphereClient *govmomi.Client
-	ClusterName   string
+type VsphereInfo struct {
+	PoolRef      types.ManagedObjectReference
+	DatastoreRef types.ManagedObjectReference
+	Folder       *object.Folder
+	Datacenter   *object.Datacenter
+	TagManager   *tags.Manager
+	Finder       *find.Finder
+	Client       *govmomi.Client
 }
 
-func NewDefaultProvider(c *govmomi.Client, clusterName string) *DefaultProvider {
+type DefaultProvider struct {
+	VsphereInfo *VsphereInfo
+	ClusterName string
+	VsphereZone string
+	kubeClient  kubernetes.Interface
+}
+
+func NewDefaultProvider(v *VsphereInfo, kube kubernetes.Interface, clusterName, zone string) *DefaultProvider {
 	return &DefaultProvider{
-		vsphereClient: c,
-		ClusterName:   clusterName,
+		VsphereInfo: v,
+		ClusterName: clusterName,
+		VsphereZone: zone,
+		kubeClient:  kube,
 	}
 }
 
 func (p *DefaultProvider) Name() string {
 	return "vsphere"
-}
-
-func genereateResourcePoolPath(class *v1alpha1.VsphereNodeClass) string {
-	return fmt.Sprintf("/%s/host/%s/Resources", class.Spec.DC, class.Spec.ComputeCluster)
 }
 
 func (p *DefaultProvider) GenerateVMSpec(ctx context.Context, class *v1alpha1.VsphereNodeClass, name string, instanceType *corecloudprovider.InstanceType) (*types.VirtualMachineCloneSpec, error) {
@@ -55,83 +73,127 @@ func (p *DefaultProvider) GenerateVMSpec(ctx context.Context, class *v1alpha1.Vs
 	if err != nil {
 		return nil, fmt.Errorf("failed to get device spec: %w", err)
 	}
+	initData, err := p.GetInitData(ctx, class, name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get init data: %w", err)
+	}
 	return &types.VirtualMachineCloneSpec{
 		Template: false,
 		Location: *locationSpec,
 		Config: &types.VirtualMachineConfigSpec{
 			Name:         name,
-			NumCPUs:      int32(instanceType.Capacity.Cpu().Size()),
-			MemoryMB:     instanceType.Capacity.Memory().ToDec().Value(),
+			Annotation:   fmt.Sprintf("cloned_from:%s", class.Spec.Image),
+			NumCPUs:      int32(instanceType.Capacity.Cpu().Value()),
+			MemoryMB:     instanceType.Capacity.Memory().ToDec().Value() * 1024,
 			GuestId:      string(types.VirtualMachineGuestOsIdentifierOtherLinux64Guest), // This should be adjusted based on the OS type in the instance type.
 			DeviceChange: diskAndNet,
+			ExtraConfig:  initData,
 		},
 		PowerOn: true,
 	}, nil
 }
 
-func (p *DefaultProvider) GenerateTarget(ctx context.Context, class *v1alpha1.VsphereNodeClass) (*types.VirtualMachineRelocateSpec, error) {
-	f := find.NewFinder(p.vsphereClient.Client, true)
-	dc, err := f.Datacenter(ctx, class.Spec.DC)
+func (p *DefaultProvider) GetInitData(ctx context.Context, class *v1alpha1.VsphereNodeClass, nodeName string) ([]types.BaseOptionValue, error) {
+	metaData := &Config{}
+	// Set the metadata with the local hostname
+	metaDataRaw := []byte(fmt.Sprintf("local-hostname: \"%s\"", nodeName))
+	userDataTplBase64 := class.Spec.UserData.TemplateBase64
+	decodedUserData, err := base64.StdEncoding.DecodeString(userDataTplBase64)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find datacenter: %w", err)
+		return nil, fmt.Errorf("failed to decode user data template: %w", err)
 	}
-	f.SetDatacenter(dc)
-	pool, err := f.ResourcePool(ctx, genereateResourcePoolPath(class))
+	templateValuesSecret, err := p.kubeClient.CoreV1().Secrets(class.Spec.UserData.Values.Namespace).Get(ctx, class.Spec.UserData.Values.Name, metav1.GetOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to find resource pool: %w", err)
+		return nil, fmt.Errorf("failed to get user data values secret: %w", err)
 	}
+	values := templateValuesSecret.Data
+	strValues := map[string]string{}
+	for k, v := range values {
+		strValues[k] = string(v)
+	}
+	tmpl, err := template.New("cloud-data").Parse(string(decodedUserData))
+	if err != nil {
+		panic(err)
+	}
+	var buf bytes.Buffer
+	err = tmpl.Execute(&buf, strValues)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute user data template: %w", err)
+	}
+	// Ignition userdata
+	if class.Spec.UserData.Type == v1alpha1.UserDataTypeCloudInit {
+		metaData.SetCloudInitMetadata(buf.Bytes())
+	}
+	// Cloud-init userdata
+	if class.Spec.UserData.Type == v1alpha1.UserDataTypeIgnition {
+		metaData.SetIgnitionUserData(buf.Bytes())
+	}
+	// Set metadata
+	metaData.SetMetadata(metaDataRaw)
 
-	ds, err := f.DatastoreOrDefault(ctx, class.Spec.Datastore)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find datastore: %w", err)
-	}
-	poolRef := pool.Reference()
-	dsRef := ds.Reference()
-	return &types.VirtualMachineRelocateSpec{
-		Datastore: &dsRef,
-		Pool:      &poolRef,
-	}, nil
+	return metaData.Extract(), nil
 
 }
+
+type NormalTag struct {
+	Key   string
+	Value string
+}
+
+func (p *DefaultProvider) GenerateTarget(ctx context.Context, class *v1alpha1.VsphereNodeClass) (*types.VirtualMachineRelocateSpec, error) {
+	return &types.VirtualMachineRelocateSpec{
+		Datastore: &p.VsphereInfo.DatastoreRef,
+		Pool:      &p.VsphereInfo.PoolRef,
+	}, nil
+}
+
 func (p *DefaultProvider) Create(
 	ctx context.Context,
 	class *v1alpha1.VsphereNodeClass,
 	claim *karpv1.NodeClaim,
-	instanceTypes []*corecloudprovider.InstanceType) (*Instance, error) {
+	instanceTypes []*corecloudprovider.InstanceType, poolName string) (*Instance, error) {
 
-	VMName := GenerateVMName(p.ClusterName, claim.Name)
 	instanceType := instanceTypes[0] // For simplicity, we take the first instance type.
+	VMName := GenerateVMName(p.ClusterName, claim.Name)
+	instanceTags := map[string]string{
+		v1alpha1.ClusterNameTagKey:   p.ClusterName,
+		v1alpha1.LabelNodeClass:      class.Name,
+		karpv1.NodePoolLabelKey:      poolName,
+		corev1.LabelTopologyZone:     p.VsphereZone,
+		v1alpha1.LabelInstanceSize:   instanceType.Name,
+		v1alpha1.LabelInstanceCPU:    fmt.Sprintf("%d", instanceType.Capacity.Cpu().Value()),
+		v1alpha1.LabelInstanceMemory: fmt.Sprintf("%d", GiToMb(instanceType.Capacity.Memory().ToDec().Value())),
+	}
+
 	cloneSpec, err := p.GenerateVMSpec(ctx, class, VMName, instanceType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate VM spec: %w", err)
 	}
-	finder := find.NewFinder(p.vsphereClient.Client, true)
-	dc, err := finder.Datacenter(ctx, class.Spec.DC)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find datacenter: %w", err)
-	}
-	finder.SetDatacenter(dc)
-	folder, err := finder.Folder(ctx, fmt.Sprintf("/%s/vm/%s", class.Spec.DC, class.Spec.Path))
-	if err != nil {
-		return nil, fmt.Errorf("failed to find folder: %w", err)
-	}
 
-	vmTemplate, err := finder.VirtualMachine(ctx, class.Spec.Image)
+	vmTemplate, err := p.VsphereInfo.Finder.VirtualMachine(ctx, class.Spec.Image)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find VM template: %w", err)
 	}
-	task, err := vmTemplate.Clone(ctx, folder, GenerateVMName(p.ClusterName, claim.Name), *cloneSpec)
+	task, err := vmTemplate.Clone(ctx, p.VsphereInfo.Folder, GenerateVMName(p.ClusterName, claim.Name), *cloneSpec)
 	if err != nil {
 		return nil, fmt.Errorf("failed to clone VM: %w", err)
 	}
-	err = task.Wait(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("task failed: %w", err)
-	}
-	vm, err := finder.VirtualMachine(ctx, VMName)
+	vm, err := p.VsphereInfo.Finder.VirtualMachine(ctx, VMName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find cloned VM: %w", err)
 	}
+
+	tagIDs, err := p.CreateOrUpdateTags(ctx, instanceTags)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create or update tags: %w", err)
+	}
+	for _, tagID := range tagIDs {
+		err = p.VsphereInfo.TagManager.AttachTag(ctx, tagID, vm.Reference())
+		if err != nil {
+			return nil, fmt.Errorf("failed to attach tag to VM: %w", err)
+		}
+	}
+
 	creationDate, err := extractCreationDate(ctx, vm)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract creation date: %w", err)
@@ -140,7 +202,11 @@ func (p *DefaultProvider) Create(
 	if err != nil {
 		return nil, fmt.Errorf("failed to get power state: %w", err)
 	}
-	return NewInstance(vm.UUID(ctx), class.Spec.Image, powerState.Strings(), vm.Name(), *creationDate), err
+	err = task.Wait(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("task failed: %w", err)
+	}
+	return NewInstance(vm.UUID(ctx), class.Spec.Image, string(powerState), vm.Name(), *creationDate, instanceTags), err
 }
 
 func extractCreationDate(ctx context.Context, vm *object.VirtualMachine) (*time.Time, error) {
@@ -163,13 +229,96 @@ func (p *DefaultProvider) Get(ctx context.Context, vmID string) (*models.Virtual
 	return vm, nil
 }
 
-func (p *DefaultProvider) List(ctx context.Context) ([]*models.VirtualMachine, error) {
-	fmt.Println("Listing all VMs - not implemented yet")
-	return nil, nil
+func getImageFromAnnotation(vm *object.VirtualMachine) string {
+	var annotation string
+	err := vm.Properties(context.Background(), vm.Reference(), []string{"config.config"}, &annotation)
+	if err != nil {
+		annotation = "image_not_found"
+	}
+	return strings.TrimPrefix(annotation, "cloned_from:")
+}
+
+func extractTagInfo(ctx context.Context, tagManager *tags.Manager, tagIDs []string) (map[string]string, error) {
+	tags := make(map[string]string)
+	for _, tagID := range tagIDs {
+		tag, err := tagManager.GetTag(ctx, tagID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get tag %s: %w", tagID, err)
+		}
+		cat, err := tagManager.GetCategory(ctx, tag.CategoryID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get category for tag %s: %w", tagID, err)
+		}
+		if cat.Name == "k8s-zone" {
+			// Normalize Vsphere tag to fulfill CPI requirements
+			cat.Name = corev1.LabelTopologyZone
+		}
+		tags[cat.Name] = tag.Name
+	}
+	return tags, nil
+
+}
+func (p *DefaultProvider) List(ctx context.Context) ([]*Instance, error) {
+	instances := []*Instance{}
+	vms, err := p.VsphereInfo.Finder.VirtualMachineList(ctx, p.VsphereInfo.Folder.InventoryPath+"/*")
+	if err != nil {
+		fmt.Printf("Failed to list VMs: %v\n", err)
+	}
+	for _, vm := range vms {
+		image := getImageFromAnnotation(vm)
+		tagsAttached, err := p.VsphereInfo.TagManager.ListAttachedTags(ctx, vm.Reference())
+		if err != nil {
+			fmt.Printf("Failed to list tags for VM %s: %v\n", vm.Name(), err)
+		}
+		tags, err := extractTagInfo(ctx, p.VsphereInfo.TagManager, tagsAttached)
+		if err != nil {
+			fmt.Printf("Failed to extract tag info for VM %s: %v\n", vm.Name(), err)
+		}
+		ps, err := vm.PowerState(ctx)
+		if err != nil {
+			fmt.Printf("Failed to get power state for VM %s: %v\n", vm.Name(), err)
+		}
+		creationDate, err := extractCreationDate(ctx, vm)
+		if err != nil {
+			fmt.Printf("Failed to extract creation date for VM %s: %v\n", vm.Name(), err)
+		}
+		instances = append(instances, NewInstance(vm.UUID(ctx), image, string(ps), vm.Name(), *creationDate, tags))
+	}
+	return instances, nil
 }
 
 func (p *DefaultProvider) Delete(ctx context.Context, vmID string) error {
-	fmt.Println("Deleting VM - not implemented yet")
+	ptrBool := false
+	vClient := p.VsphereInfo.Client.Client
+	searchIndex := object.NewSearchIndex(vClient)
+	vmRef, err := searchIndex.FindByUuid(ctx, p.VsphereInfo.Datacenter, vmID, true, &ptrBool)
+	if err != nil {
+		return err
+	}
+	if vmRef == nil {
+		// VM not found, nothing to delete
+		return nil
+	}
+	vm := object.NewVirtualMachine(vClient, vmRef.Reference())
+	task, err := vm.PowerOff(ctx)
+	if err != nil {
+		return err
+	}
+	// Wait for the power off task to complete
+	err = task.Wait(ctx)
+	if err != nil {
+		return err
+	}
+	task, err = vm.Destroy(ctx)
+	if err != nil {
+		return err
+	}
+	// Wait for the destroy task to complete
+	err = task.Wait(ctx)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

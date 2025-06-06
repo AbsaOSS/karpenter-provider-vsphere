@@ -5,6 +5,7 @@ import (
 
 	"github.com/mitchellh/hashstructure/v2"
 	"github.com/samber/lo"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -33,13 +34,25 @@ type VsphereNodeClassList struct {
 }
 
 type VsphereNodeClassSpec struct {
-	ComputeCluster string                  `json:"computeCluster,omitempty"`
-	DC             string                  `json:"dc,omitempty"`
-	Datastore      string                  `json:"datastore,omitempty"`
-	Path           string                  `json:"path,omitempty"`
-	Image          string                  `json:"image,omitempty"`
-	Network        string                  `json:"network,omitempty"`
-	InstanceTypes  map[string]InstanceType `json:"instanceTypes,omitempty"`
+	Image         string                  `json:"image,omitempty"`
+	Network       string                  `json:"network,omitempty"`
+	InstanceTypes map[string]InstanceType `json:"instanceTypes,omitempty"`
+	UserData      UserData                `json:"userData,omitempty"`
+}
+
+type UserDataType string
+
+const (
+	UserDataTypeCloudInit UserDataType = "cloud-init"
+	UserDataTypeIgnition  UserDataType = "ignition"
+)
+
+type UserData struct {
+	Type UserDataType `json:"type,omitempty"`
+	// +optional
+	TemplateBase64 string `json:"templateBase64,omitempty"`
+	// +optional
+	Values corev1.SecretReference `json:"values,omitempty"`
 }
 
 type InstanceType struct {

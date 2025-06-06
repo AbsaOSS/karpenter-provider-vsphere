@@ -2,6 +2,7 @@ package operator
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis"
@@ -17,7 +18,10 @@ import (
 	"github.com/patrickmn/go-cache"
 	"github.com/samber/lo"
 	"github.com/vmware/govmomi"
+	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/session"
+	"github.com/vmware/govmomi/vapi/rest"
+	"github.com/vmware/govmomi/vapi/tags"
 	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/soap"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -53,11 +57,11 @@ func NewOperator(ctx context.Context, operator *operator.Operator) (context.Cont
 		Operator:                     operator,
 		KubernetesVersionProvider:    kubernetesVersionProvider,
 		InClusterKubernetesInterface: inClusterClient,
-		InstanceProvider:             instance.NewDefaultProvider(vsphereClient, options.FromContext(ctx).ClusterName),
+		InstanceProvider:             instance.NewDefaultProvider(vsphereClient, inClusterClient, options.FromContext(ctx).ClusterName, options.FromContext(ctx).VsphereZone),
 	}
 }
 
-func GetVsphereClient(ctx context.Context) (*govmomi.Client, error) {
+func GetVsphereClient(ctx context.Context) (*instance.VsphereInfo, error) {
 	url := &x.URL{
 		Scheme: "https",
 		Host:   options.FromContext(ctx).VsphereEndpoint,
@@ -75,8 +79,45 @@ func GetVsphereClient(ctx context.Context) (*govmomi.Client, error) {
 		Client:         vimClient,
 		SessionManager: session.NewManager(vimClient),
 	}
+	restClient := rest.NewClient(c.Client)
 	if err := c.Login(ctx, url.User); err != nil {
 		return nil, errors.Wrapf(err, "failed to create client: failed to login")
 	}
-	return &c, nil
+	if err := restClient.Login(ctx, url.User); err != nil {
+		return nil, errors.Wrapf(err, "failed to create client: failed to login to rest client")
+	}
+
+	finder := find.NewFinder(c.Client, true)
+	dc, err := finder.Datacenter(ctx, options.FromContext(ctx).VsphereDatacenter)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to find datacenter %s", options.FromContext(ctx).VsphereDatacenter)
+	}
+	finder.SetDatacenter(dc)
+	poolPath := genereateResourcePoolPath(options.FromContext(ctx).VsphereDatacenter, options.FromContext(ctx).VsphereComputeCluster)
+	pool, err := finder.ResourcePool(ctx, poolPath)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to find resource pool %s", poolPath)
+	}
+	folderPath := fmt.Sprintf("/%s/vm/%s", options.FromContext(ctx).VsphereDatacenter, options.FromContext(ctx).VspherePath)
+	path, err := finder.Folder(ctx, folderPath)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to find folder %s", options.FromContext(ctx).VspherePath)
+	}
+	ds, err := finder.DatastoreOrDefault(ctx, options.FromContext(ctx).VsphereDatastore)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to find datastore %s", options.FromContext(ctx).VsphereDatastore)
+	}
+	return &instance.VsphereInfo{
+		PoolRef:      pool.Reference(),
+		DatastoreRef: ds.Reference(),
+		Datacenter:   dc,
+		Folder:       path,
+		TagManager:   tags.NewManager(restClient),
+		Client:       &c,
+		Finder:       finder,
+	}, nil
+}
+
+func genereateResourcePoolPath(dc, cluster string) string {
+	return fmt.Sprintf("/%s/host/%s/Resources", dc, cluster)
 }

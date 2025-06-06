@@ -43,12 +43,6 @@ spec:
             type: object
           spec:
             properties:
-              computeCluster:
-                type: string
-              datastore:
-                type: string
-              dc:
-                type: string
               image:
                 type: string
               instanceTypes:
@@ -70,8 +64,28 @@ spec:
                 type: object
               network:
                 type: string
-              path:
-                type: string
+              userData:
+                properties:
+                  templateBase64:
+                    type: string
+                  type:
+                    type: string
+                  values:
+                    description: |-
+                      SecretReference represents a Secret Reference. It has enough information to retrieve secret
+                      in any namespace
+                    properties:
+                      name:
+                        description: name is unique within a namespace to reference
+                          a secret resource.
+                        type: string
+                      namespace:
+                        description: namespace defines the space within which the
+                          secret name must be unique.
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
+                type: object
             type: object
           status:
             properties:
