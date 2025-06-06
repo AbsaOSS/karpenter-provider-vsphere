@@ -297,7 +297,7 @@ func (p *DefaultProvider) Delete(ctx context.Context, vmID string) error {
 	}
 	if vmRef == nil {
 		// VM not found, nothing to delete
-		return nil
+		return corecloudprovider.NewNodeClaimNotFoundError(fmt.Errorf("vmRef not found"))
 	}
 	vm := object.NewVirtualMachine(vClient, vmRef.Reference())
 	task, err := vm.PowerOff(ctx)
