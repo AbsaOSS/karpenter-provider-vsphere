@@ -23,7 +23,7 @@ jobs:
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
-      bare_version: ${{ format('{0}.{1}.{2}', steps.release.outputs.major, steps.release.outputs.minor, steps.release.outputs.patch) }} 
+      version: ${{ steps.release.outputs.version }}
     steps:
       - uses: googleapis/release-please-action@v4
         id: release
@@ -56,9 +56,10 @@ jobs:
       # package and push helm
       - name: package/push helm
         env:
-          CHART_VERSION: ${{ needs.release.outputs.bare_version }}
+          CHART_VERSION: ${{ needs.release.outputs.version }}
+          TAG: ${{ needs.release.outputs.tag_name }}
         run: |
-          helm package --version $CHART_VERSION karpenter-crd
-          helm package --version $CHART_VERSION karpenter
+          helm package --version $CHART_VERSION --app-version $TAG karpenter-crd
+          helm package --version $CHART_VERSION --app-version $TAG karpenter
           helm push karpenter-crd-$CHART_VERSION.tgz oci://ghcr.io/absaoss/karpenter-crd 
           helm push karpenter-$CHART_VERSION.tgz oci://ghcr.io/absaoss/karpenter
