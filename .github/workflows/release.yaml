@@ -1,0 +1,63 @@
+---
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+  packages: write
+  id-token: write
+
+env:
+  GO111MODULE: "on"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    name: Release
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      bare_version: ${{ format('{0}.{1}.{2}', steps.release.outputs.major, steps.release.outputs.minor, steps.release.outputs.patch) }} 
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+
+  provider:
+    if: needs.release.outputs.release_created
+    runs-on: ubuntu-latest
+    name: Publish Provider
+    needs:
+      - release
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ./go.mod
+      - name: setup ko
+        uses: ko-build/setup-ko@v0.8
+      - uses: azure/setup-helm@v4.3.0
+      - name: Login to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}          
+      - run: ko build --bare github.com/absaoss/karpenter-provider-vsphere/cmd/controller
+      # package and push helm
+      - name: package/push helm
+        env:
+          CHART_VERSION: ${{ needs.release.outputs.bare_version }}
+        run: |
+          helm package --version $CHART_VERSION karpenter-crd
+          helm package --version $CHART_VERSION karpenter
+          helm push karpenter-crd-$CHART_VERSION.tgz oci://ghcr.io/absaoss/karpenter-crd 
+          helm push karpenter-$CHART_VERSION.tgz oci://ghcr.io/absaoss/karpenter
