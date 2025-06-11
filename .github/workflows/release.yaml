@@ -60,8 +60,6 @@ jobs:
           TAG: ${{ needs.release.outputs.tag_name }}
         run: |
           pushd charts
-#          helm package --version $CHART_VERSION --app-version $TAG karpenter-crd
-#          helm package --version $CHART_VERSION --app-version $TAG karpenter
           helm package karpenter-crd
           helm package karpenter
           helm push karpenter-crd-$CHART_VERSION.tgz oci://ghcr.io/absaoss/karpenter-crd 
