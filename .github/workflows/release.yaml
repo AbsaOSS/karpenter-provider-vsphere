@@ -62,6 +62,6 @@ jobs:
           pushd charts
           helm package karpenter-crd
           helm package karpenter
-          helm push karpenter-crd-$CHART_VERSION.tgz oci://ghcr.io/absaoss/karpenter-crd 
+          helm push karpenter-crd-$CHART_VERSION.tgz oci://ghcr.io/absaoss/karpenter
           helm push karpenter-$CHART_VERSION.tgz oci://ghcr.io/absaoss/karpenter
           popd

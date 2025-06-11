@@ -43,8 +43,6 @@ type Operator struct {
 func NewOperator(ctx context.Context, operator *operator.Operator) (context.Context, *Operator) {
 	vsphereClient, restClient, err := GetVsphereClient(ctx)
 	lo.Must0(err, "creating vsphere client")
-	//	vsphereDefaults, err := GetVspereDefaults(ctx, vsphereClient)
-	//	lo.Must0(err, "get vsphere defaults")
 	tagClient := tags.NewManager(restClient)
 
 	//inClusterConfig := lo.Must(rest.InClusterConfig())
