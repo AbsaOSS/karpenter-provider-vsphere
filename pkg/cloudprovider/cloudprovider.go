@@ -4,6 +4,7 @@ import (
 	"context"
 	stderrors "errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -138,9 +139,39 @@ func GenerateNodeClaimName(vmName, clusterName string) string {
 	return strings.TrimLeft(fmt.Sprintf("%s-karp-", clusterName), vmName)
 }
 
-func (c *CloudProvider) Get(ctx context.Context, instance string) (*karpv1.NodeClaim, error) {
-	return &karpv1.NodeClaim{}, nil
+func (c *CloudProvider) Get(ctx context.Context, id string) (*karpv1.NodeClaim, error) {
+	id, err := utils.ParseInstanceID(id)
+	if err != nil {
+		return nil, fmt.Errorf("getting instance ID, %w", err)
+	}
+	ctx = log.IntoContext(ctx, log.FromContext(ctx).WithValues("id", id))
+	instance, err := c.instanceProvider.Get(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("getting instance, %w", err)
+	}
+	instanceType, err := c.resolveInstanceTypeFromInstance(ctx, instance)
+	if err != nil {
+		return nil, fmt.Errorf("resolving instance type, %w", err)
+	}
+	return c.instanceToNodeClaim(instance, instanceType), nil
 }
+
+//func (c *CloudProvider) resolveNodeClassFromInstance(ctx context.Context, instance *instance.Instance) (*v1alpha1.VsphereNodeClass, error) {
+//	name, ok := instance.Tags[v1alpha1.LabelNodeClass]
+//	if !ok {
+//		return nil, errors.NewNotFound(schema.GroupResource{Group: apis.Group, Resource: "ec2nodeclasses"}, "")
+//	}
+//	nc := &v1alpha1.VsphereNodeClass{}
+//	if err := c.kubeClient.Get(ctx, types.NamespacedName{Name: name}, nc); err != nil {
+//		return nil, fmt.Errorf("resolving ec2nodeclass, %w", err)
+//	}
+//	if !nc.DeletionTimestamp.IsZero() {
+//		// For the purposes of NodeClass CloudProvider resolution, we treat deleting NodeClasses as NotFound,
+//		// but we return a different error message to be clearer to users
+//		return nil, newTerminatingNodeClassError(nc.Name)
+//	}
+//	return nc, nil
+//}
 
 func (c *CloudProvider) List(ctx context.Context) ([]*karpv1.NodeClaim, error) {
 	instances, err := c.instanceProvider.List(ctx)
@@ -245,20 +276,39 @@ func (c *CloudProvider) IsDrifted(ctx context.Context, claim *karpv1.NodeClaim) 
 
 func instanceTypesFromNodeClass(nodeClass *v1alpha1.VsphereNodeClass) []*cloudprovider.InstanceType {
 	instanceTypes := []*cloudprovider.InstanceType{}
-	for n, t := range nodeClass.Spec.InstanceTypes {
+	var cpu, memory, os string
+	for _, t := range nodeClass.Spec.InstanceTypes {
+		instanceTypeRegex := regexp.MustCompile(`(?P<CPU>.*)-(?P<Memory>.*)-(?P<OS>.*)`)
+		matches := instanceTypeRegex.FindStringSubmatch(t)
+		if matches == nil {
+			fmt.Printf("instance type %s does not match expected format\n", t)
+		}
+		for i, name := range instanceTypeRegex.SubexpNames() {
+			if name == "CPU" {
+				cpu = matches[i]
+			}
+			if name == "Memory" {
+				memory = matches[i]
+			}
+			if name == "OS" {
+				os = matches[i]
+			}
+		}
+		typeName := fmt.Sprintf("vsphere-vm.cpu-%s.mem-%sgb.os-%s", cpu, memory, os)
 		instanceType := &cloudprovider.InstanceType{
-			Name: n,
+			Name: typeName,
 			Requirements: scheduling.NewRequirements(
-				scheduling.NewRequirement(corev1.LabelInstanceTypeStable, corev1.NodeSelectorOpIn, n),
-				scheduling.NewRequirement(corev1.LabelArchStable, corev1.NodeSelectorOpIn, t.Arch),
-				scheduling.NewRequirement(corev1.LabelOSStable, corev1.NodeSelectorOpIn, t.OS),
+				scheduling.NewRequirement(corev1.LabelInstanceTypeStable, corev1.NodeSelectorOpIn, t),
+				scheduling.NewRequirement(corev1.LabelArchStable, corev1.NodeSelectorOpIn, "amd64"),
+				scheduling.NewRequirement(corev1.LabelOSStable, corev1.NodeSelectorOpIn, os),
 			),
 			Capacity: corev1.ResourceList{
-				corev1.ResourceCPU:              resource.MustParse(t.CPU),
-				corev1.ResourceMemory:           resource.MustParse(t.Memory),
-				corev1.ResourcePods:             resource.MustParse(t.MaxPods),
-				corev1.ResourceEphemeralStorage: resource.MustParse(t.Storage),
+				corev1.ResourceCPU:              resource.MustParse(cpu),
+				corev1.ResourceMemory:           resource.MustParse(memory),
+				corev1.ResourcePods:             resource.MustParse("110"),
+				corev1.ResourceEphemeralStorage: resource.MustParse(utils.GiToByteAsString(nodeClass.Spec.DiskSize)),
 			},
+			//TODO: compute kubelet overhead
 			Overhead: &cloudprovider.InstanceTypeOverhead{},
 			Offerings: []*cloudprovider.Offering{
 				{

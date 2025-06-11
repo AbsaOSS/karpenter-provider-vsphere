@@ -1,9 +1,15 @@
 package instance
 
 import (
+	"bytes"
+	"context"
 	"encoding/base64"
+	"fmt"
+	"html/template"
 
+	v1alpha1 "github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
 	"github.com/vmware/govmomi/vim25/types"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // Config is data used with a VM's guestInfo RPC interface.
@@ -23,6 +29,48 @@ func (e *Config) Extract() []types.BaseOptionValue {
 		return nil
 	}
 	return *e
+}
+
+func (p *DefaultProvider) GetInitData(ctx context.Context, class *v1alpha1.VsphereNodeClass, nodeName string) ([]types.BaseOptionValue, error) {
+	metaData := &Config{}
+	// Set the metadata with the local hostname
+	metaDataRaw := []byte(fmt.Sprintf("local-hostname: \"%s\"", nodeName))
+	userDataTplBase64 := class.Spec.UserData.TemplateBase64
+	decodedUserData, err := base64.StdEncoding.DecodeString(userDataTplBase64)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode user data template: %w", err)
+	}
+	templateValuesSecret, err := p.kubeClient.CoreV1().Secrets(class.Spec.UserData.Values.Namespace).Get(ctx, class.Spec.UserData.Values.Name, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user data values secret: %w", err)
+	}
+	values := templateValuesSecret.Data
+	strValues := map[string]string{}
+	for k, v := range values {
+		strValues[k] = string(v)
+	}
+	tmpl, err := template.New("cloud-data").Parse(string(decodedUserData))
+	if err != nil {
+		panic(err)
+	}
+	var buf bytes.Buffer
+	err = tmpl.Execute(&buf, strValues)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute user data template: %w", err)
+	}
+	// Ignition userdata
+	if class.Spec.UserData.Type == v1alpha1.UserDataTypeCloudInit {
+		metaData.SetCloudInitMetadata(buf.Bytes())
+	}
+	// Cloud-init userdata
+	if class.Spec.UserData.Type == v1alpha1.UserDataTypeIgnition {
+		metaData.SetIgnitionUserData(buf.Bytes())
+	}
+	// Set metadata
+	metaData.SetMetadata(metaDataRaw)
+
+	return metaData.Extract(), nil
+
 }
 
 func (e *Config) SetCloudInitMetadata(data []byte) {

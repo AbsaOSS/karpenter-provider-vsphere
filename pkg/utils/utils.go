@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 
 	"github.com/awslabs/operatorpkg/serrors"
 	"sigs.k8s.io/karpenter/pkg/cloudprovider"
@@ -36,4 +37,17 @@ func ParseInstanceID(providerID string) (string, error) {
 		}
 	}
 	return "", serrors.Wrap(fmt.Errorf("provider id does not match known format"), "provider-id", providerID)
+}
+
+func GiToByteAsString(size int64) string {
+	return strconv.FormatInt(GiToByte(size), 10)
+}
+func GiToByte(size int64) int64 {
+	return size * 1024 * 1024 * 1024
+}
+func GiToKb(size int64) int64 {
+	return size * 1024 * 1024
+}
+func GiToMb(size int64) int64 {
+	return size * 1024
 }

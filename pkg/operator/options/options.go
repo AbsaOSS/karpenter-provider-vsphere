@@ -17,16 +17,16 @@ func init() {
 }
 
 type Options struct {
-	ClusterName           string
-	VsphereEndpoint       string
-	VsphereUsername       string
-	VspherePassword       string
-	VsphereDatacenter     string
-	VsphereComputeCluster string
-	VsphereDatastore      string
-	VspherePath           string
-	VsphereZone           string
-	VsphereInsecure       bool
+	ClusterName     string
+	VsphereEndpoint string
+	VsphereUsername string
+	VspherePassword string
+	//	VsphereDatacenter     string
+	//	VsphereComputeCluster string
+	//	VsphereDatastore      string
+	VsphereFolder   string
+	VsphereZone     string
+	VsphereInsecure bool
 }
 
 type optionsKey struct{}
@@ -36,10 +36,10 @@ func (o *Options) AddFlags(fs *coreoptions.FlagSet) {
 	fs.StringVar(&o.VsphereEndpoint, "vsphere-endpoint", env.WithDefaultString("GOVC_URL", ""), "[REQUIRED] The vSphere endpoint to use for the vSphere provider")
 	fs.StringVar(&o.VsphereUsername, "vsphere-username", env.WithDefaultString("GOVC_USERNAME", ""), "[REQUIRED] The vSphere username to use for the vSphere provider")
 	fs.StringVar(&o.VspherePassword, "vsphere-password", env.WithDefaultString("GOVC_PASSWORD", ""), "[REQUIRED] The vSphere password to use for the vSphere provider")
-	fs.StringVar(&o.VsphereDatacenter, "vsphere-datacenter", env.WithDefaultString("GOVC_DATACENTER", ""), "[REQUIRED] The vSphere datacenter to use for the vSphere provider")
-	fs.StringVar(&o.VsphereComputeCluster, "vsphere-cluster", env.WithDefaultString("VSPHERE_POOL", ""), "[REQUIRED] The vSphere datacenter to use for the vSphere provider")
-	fs.StringVar(&o.VsphereDatastore, "vsphere-datastore", env.WithDefaultString("VSPHERE_DATASTORE", ""), "[REQUIRED] The vSphere datacenter to use for the vSphere provider")
-	fs.StringVar(&o.VspherePath, "vsphere-path", env.WithDefaultString("VSPHERE_PATH", ""), "[REQUIRED] The vSphere path to use for the vSphere provider")
+	//	fs.StringVar(&o.VsphereDatacenter, "vsphere-datacenter", env.WithDefaultString("GOVC_DATACENTER", ""), "[REQUIRED] The vSphere datacenter to use for the vSphere provider")
+	//	fs.StringVar(&o.VsphereComputeCluster, "vsphere-cluster", env.WithDefaultString("VSPHERE_POOL", ""), "[REQUIRED] The vSphere datacenter to use for the vSphere provider")
+	//	fs.StringVar(&o.VsphereDatastore, "vsphere-datastore", env.WithDefaultString("VSPHERE_DATASTORE", ""), "[REQUIRED] The vSphere datacenter to use for the vSphere provider")
+	fs.StringVar(&o.VsphereFolder, "vsphere-path", env.WithDefaultString("VSPHERE_FOLDER", ""), "[REQUIRED] The vSphere path to use for the vSphere provider")
 	fs.BoolVar(&o.VsphereInsecure, "vsphere-insecure", env.WithDefaultBool("GOVC_INSECURE", false), "[REQUIRED] The vSphere insecure flag to use for the vSphere provider")
 	fs.StringVar(&o.VsphereZone, "vsphere-zone", env.WithDefaultString("VSPHERE_ZONE", ""), "[REQUIRED] The vSphere zone to use for the vSphere provider")
 }

@@ -2,7 +2,6 @@ package operator
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis"
@@ -12,13 +11,13 @@ import (
 	x "net/url"
 
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/operator/options"
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/finder"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/instance"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/kubernetesversion"
 
 	"github.com/patrickmn/go-cache"
 	"github.com/samber/lo"
 	"github.com/vmware/govmomi"
-	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/session"
 	"github.com/vmware/govmomi/vapi/rest"
 	"github.com/vmware/govmomi/vapi/tags"
@@ -38,11 +37,15 @@ type Operator struct {
 	InClusterKubernetesInterface kubernetes.Interface
 	KubernetesVersionProvider    kubernetesversion.KubernetesVersionProvider
 	InstanceProvider             instance.Provider
+	FinderProvider               *finder.Provider
 }
 
 func NewOperator(ctx context.Context, operator *operator.Operator) (context.Context, *Operator) {
-	vsphereClient, err := GetVsphereClient(ctx)
+	vsphereClient, restClient, err := GetVsphereClient(ctx)
 	lo.Must0(err, "creating vsphere client")
+	//	vsphereDefaults, err := GetVspereDefaults(ctx, vsphereClient)
+	//	lo.Must0(err, "get vsphere defaults")
+	tagClient := tags.NewManager(restClient)
 
 	//inClusterConfig := lo.Must(rest.InClusterConfig())
 	// for testing purposes load local kubeconfig if available
@@ -53,15 +56,26 @@ func NewOperator(ctx context.Context, operator *operator.Operator) (context.Cont
 		inClusterClient,
 		cache.New(15*time.Minute, 1*time.Minute),
 	)
+
+	folder := options.FromContext(ctx).VsphereFolder
+
+	finderProvider := finder.NewDefaultProvider(tagClient, vsphereClient, folder)
+	instanceProvider := instance.NewDefaultProvider(
+		inClusterClient,
+		finderProvider,
+		options.FromContext(ctx).ClusterName,
+		options.FromContext(ctx).VsphereZone,
+	)
 	return ctx, &Operator{
 		Operator:                     operator,
 		KubernetesVersionProvider:    kubernetesVersionProvider,
 		InClusterKubernetesInterface: inClusterClient,
-		InstanceProvider:             instance.NewDefaultProvider(vsphereClient, inClusterClient, options.FromContext(ctx).ClusterName, options.FromContext(ctx).VsphereZone),
+		InstanceProvider:             instanceProvider,
+		FinderProvider:               finderProvider,
 	}
 }
 
-func GetVsphereClient(ctx context.Context) (*instance.VsphereInfo, error) {
+func GetVsphereClient(ctx context.Context) (*vim25.Client, *rest.Client, error) {
 	url := &x.URL{
 		Scheme: "https",
 		Host:   options.FromContext(ctx).VsphereEndpoint,
@@ -71,53 +85,21 @@ func GetVsphereClient(ctx context.Context) (*instance.VsphereInfo, error) {
 	url.User = x.UserPassword(options.FromContext(ctx).VsphereUsername, options.FromContext(ctx).VspherePassword)
 	vimClient, err := vim25.NewClient(ctx, soapClient)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to create vsphere client")
+		return nil, nil, errors.Wrapf(err, "failed to create vsphere client")
 	}
 	vimClient.UserAgent = "karpenter-vsphere"
 
-	c := govmomi.Client{
+	c := &govmomi.Client{
 		Client:         vimClient,
 		SessionManager: session.NewManager(vimClient),
 	}
 	restClient := rest.NewClient(c.Client)
 	if err := c.Login(ctx, url.User); err != nil {
-		return nil, errors.Wrapf(err, "failed to create client: failed to login")
+		return nil, nil, errors.Wrapf(err, "failed to create client: failed to login")
 	}
 	if err := restClient.Login(ctx, url.User); err != nil {
-		return nil, errors.Wrapf(err, "failed to create client: failed to login to rest client")
+		return nil, nil, errors.Wrapf(err, "failed to create client: failed to login to rest client")
 	}
 
-	finder := find.NewFinder(c.Client, true)
-	dc, err := finder.Datacenter(ctx, options.FromContext(ctx).VsphereDatacenter)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to find datacenter %s", options.FromContext(ctx).VsphereDatacenter)
-	}
-	finder.SetDatacenter(dc)
-	poolPath := genereateResourcePoolPath(options.FromContext(ctx).VsphereDatacenter, options.FromContext(ctx).VsphereComputeCluster)
-	pool, err := finder.ResourcePool(ctx, poolPath)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to find resource pool %s", poolPath)
-	}
-	folderPath := fmt.Sprintf("/%s/vm/%s", options.FromContext(ctx).VsphereDatacenter, options.FromContext(ctx).VspherePath)
-	path, err := finder.Folder(ctx, folderPath)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to find folder %s", options.FromContext(ctx).VspherePath)
-	}
-	ds, err := finder.DatastoreOrDefault(ctx, options.FromContext(ctx).VsphereDatastore)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to find datastore %s", options.FromContext(ctx).VsphereDatastore)
-	}
-	return &instance.VsphereInfo{
-		PoolRef:      pool.Reference(),
-		DatastoreRef: ds.Reference(),
-		Datacenter:   dc,
-		Folder:       path,
-		TagManager:   tags.NewManager(restClient),
-		Client:       &c,
-		Finder:       finder,
-	}, nil
-}
-
-func genereateResourcePoolPath(dc, cluster string) string {
-	return fmt.Sprintf("/%s/host/%s/Resources", dc, cluster)
+	return c.Client, restClient, nil
 }

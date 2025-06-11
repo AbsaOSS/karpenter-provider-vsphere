@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	v1alpha1 "github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/utils"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/vim25/types"
 )
@@ -52,13 +53,13 @@ func (d *DefaultProvider) getNetworkSpecs(ctx context.Context, networkName objec
 
 func (p *DefaultProvider) GetDeviceSpec(ctx context.Context, class *v1alpha1.VsphereNodeClass, diskSize int64) ([]types.BaseVirtualDeviceConfigSpec, error) {
 	var deviceChange []types.BaseVirtualDeviceConfigSpec
-	vmTemplate, err := p.VsphereInfo.Finder.VirtualMachine(ctx, class.Spec.Image)
+	vmTemplate, err := p.Finder.ResolveImage(ctx, class.Spec.ImageSelector)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find VM template: %w", err)
 	}
-	network, err := p.VsphereInfo.Finder.Network(ctx, class.Spec.Network)
+	network, err := p.Finder.ResolveNetwork(ctx, class.Spec.NetworkSelector)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find network: %w", err)
+		return nil, err
 	}
 
 	devList, err := vmTemplate.Device(ctx)
@@ -72,24 +73,18 @@ func (p *DefaultProvider) GetDeviceSpec(ctx context.Context, class *v1alpha1.Vsp
 
 	// There is at least one disk
 	primaryDisk := disks[0].(*types.VirtualDisk)
-	primaryCloneCapacityKB := GiToKb(diskSize)
+	primaryCloneCapacityKB := utils.GiToKb(diskSize)
 	primaryDiskConfigSpec, err := getDiskConfigSpec(primaryDisk, primaryCloneCapacityKB)
 	if err != nil {
 		return nil, fmt.Errorf("error getting disk config spec for primary disk: %v", err)
 	}
 
-	netSpec, err := p.getNetworkSpecs(ctx, network, devList)
+	netSpec, err := p.getNetworkSpecs(ctx, *network, devList)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get network specs: %w", err)
 	}
 	return append(deviceChange, append(netSpec, primaryDiskConfigSpec)...), nil
 
-}
-func GiToKb(size int64) int64 {
-	return size * 1024 * 1024
-}
-func GiToMb(size int64) int64 {
-	return size * 1024
 }
 
 func getDiskConfigSpec(disk *types.VirtualDisk, diskCloneCapacityKB int64) (types.BaseVirtualDeviceConfigSpec, error) {

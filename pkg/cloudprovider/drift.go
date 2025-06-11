@@ -30,7 +30,6 @@ func (c *CloudProvider) staticFieldsDrifted(nodeClaim *karpv1.NodeClaim, nodeCla
 	if !foundNodeClassHash || !foundNodeClaimHash || !foundNodeClassHashVersion || !foundNodeClaimHashVersion {
 		return ""
 	}
-	// validate that the hash version for the GCENodeClass is the same as the NodeClaim before evaluating for static drift
 	if nodeClassHashVersion != nodeClaimHashVersion {
 		return ""
 	}

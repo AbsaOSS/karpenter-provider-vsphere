@@ -33,11 +33,73 @@ type VsphereNodeClassList struct {
 	Items           []VsphereNodeClass `json:"items"`
 }
 
+type ResPoolSelctorTerm struct {
+	// Tags is a map of key/value tags used to select subnets
+	// Specifying '*' for a value selects all values for a given tag key.
+	// +kubebuilder:validation:XValidation:message="empty tag keys or values aren't supported",rule="self.all(k, k != '' && self[k] != '')"
+	// +kubebuilder:validation:MaxProperties:=1
+	// +optional
+	Tags map[string]string `json:"tags,omitempty"`
+	// Name is optional ResourcePoolName
+	// +optional
+	Name string `json:"id,omitempty"`
+}
+
+type DatastoreSelectorTerm struct {
+	// Tags is a map of key/value tags used to select subnets
+	// Specifying '*' for a value selects all values for a given tag key.
+	// +kubebuilder:validation:XValidation:message="empty tag keys or values aren't supported",rule="self.all(k, k != '' && self[k] != '')"
+	// +kubebuilder:validation:MaxProperties:=1
+	// +optional
+	Tags map[string]string `json:"tags,omitempty"`
+	// Name is optional DatastoreName
+	// +optional
+	Name string `json:"id,omitempty"`
+}
+
+type NetworkSelectorTerm struct {
+	// Tags is a map of key/value tags used to select subnets
+	// Specifying '*' for a value selects all values for a given tag key.
+	// +kubebuilder:validation:XValidation:message="empty tag keys or values aren't supported",rule="self.all(k, k != '' && self[k] != '')"
+	// +kubebuilder:validation:MaxProperties:=1
+	// +optional
+	Tags map[string]string `json:"tags,omitempty"`
+	// Name is optional NetworkName
+	// +optional
+	Name string `json:"id,omitempty"`
+}
+type DCSelectorTerm struct {
+	// Tags is a map of key/value tags used to select subnets
+	// Specifying '*' for a value selects all values for a given tag key.
+	// +kubebuilder:validation:XValidation:message="empty tag keys or values aren't supported",rule="self.all(k, k != '' && self[k] != '')"
+	// +kubebuilder:validation:MaxProperties:=1
+	// +optional
+	Tags map[string]string `json:"tags,omitempty"`
+	// Name is optional DatacenterName
+	// +optional
+	Name string `json:"id,omitempty"`
+}
+type ImageSelectorTerm struct {
+	// Tags is a map of key/value tags used to select subnets
+	// Specifying '*' for a value selects all values for a given tag key.
+	// +kubebuilder:validation:XValidation:message="empty tag keys or values aren't supported",rule="self.all(k, k != '' && self[k] != '')"
+	// +kubebuilder:validation:MaxProperties:=1
+	// +optional
+	Tags map[string]string `json:"tags,omitempty"`
+	// Name is optional ImagePattern
+	// +optional
+	Pattern string `json:"pattern,omitempty"`
+}
+
 type VsphereNodeClassSpec struct {
-	Image         string                  `json:"image,omitempty"`
-	Network       string                  `json:"network,omitempty"`
-	InstanceTypes map[string]InstanceType `json:"instanceTypes,omitempty"`
-	UserData      UserData                `json:"userData,omitempty"`
+	PoolSelector      ResPoolSelctorTerm    `json:"computeSelector,omitempty"`
+	NetworkSelector   NetworkSelectorTerm   `json:"networkSelector,omitempty"`
+	DatastoreSelector DatastoreSelectorTerm `json:"datastoreSelector,omitempty"`
+	Datacenter        DCSelectorTerm        `json:"dcSelector,omitempty"`
+	ImageSelector     ImageSelectorTerm     `json:"imageSelector,omitempty"`
+	DiskSize          int64                 `json:"diskSize,omitempty"`
+	InstanceTypes     []string              `json:"instanceTypes,omitempty"`
+	UserData          UserData              `json:"userData,omitempty"`
 }
 
 type UserDataType string
@@ -59,7 +121,6 @@ type InstanceType struct {
 	CPU     string `json:"cpu,omitempty"`
 	Memory  string `json:"memory,omitempty"`
 	MaxPods string `json:"maxPods,omitempty"`
-	Storage string `json:"storage,omitempty"`
 	OS      string `json:"os,omitempty"`
 	Arch    string `json:"arch,omitempty"`
 }
