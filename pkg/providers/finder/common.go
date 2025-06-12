@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
-	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/vim25/mo"
 )
@@ -22,8 +21,7 @@ func (p *Provider) ResolveResourcePool(ctx context.Context, selector v1alpha1.Re
 }
 
 func (p *Provider) GetDC(ctx context.Context) (*object.Datacenter, error) {
-	finder := find.NewFinder(p.Client, true)
-	return finder.DatacenterOrDefault(ctx, "*")
+	return p.FindClient.DatacenterOrDefault(ctx, "*")
 
 }
 func (p *Provider) ResolveDC(ctx context.Context, selector v1alpha1.DCSelectorTerm) (*object.Datacenter, error) {
@@ -83,27 +81,25 @@ func (p *Provider) isTemplate(ctx context.Context, obj *object.VirtualMachine) b
 }
 
 func (p *Provider) GetFolder(ctx context.Context, f string) (*object.Folder, error) {
-	vFinder := find.NewFinder(p.Client, true)
 	dc, err := p.GetDC(ctx)
 	if err != nil {
 		return nil, err
 	}
-	vFinder.SetDatacenter(dc)
-	return vFinder.Folder(ctx, f)
+	p.FindClient.SetDatacenter(dc)
+	return p.FindClient.Folder(ctx, f)
 }
 
 func (p *Provider) ListVMs(ctx context.Context) ([]*object.VirtualMachine, error) {
-	vFinder := find.NewFinder(p.Client, true)
 	dc, err := p.GetDC(ctx)
 	if err != nil {
 		return nil, err
 	}
-	vFinder.SetDatacenter(dc)
+	p.FindClient.SetDatacenter(dc)
 	folder, err := p.GetFolder(ctx, p.Folder)
 	if err != nil {
 		return nil, err
 	}
 	// GetDC and list in given DC or all DCs
-	return vFinder.VirtualMachineList(ctx, folder.InventoryPath+"/*")
+	return p.FindClient.VirtualMachineList(ctx, folder.InventoryPath+"/*")
 
 }
