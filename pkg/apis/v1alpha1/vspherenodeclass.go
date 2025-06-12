@@ -100,6 +100,7 @@ type VsphereNodeClassSpec struct {
 	DiskSize          int64                 `json:"diskSize,omitempty"`
 	InstanceTypes     []string              `json:"instanceTypes,omitempty"`
 	UserData          UserData              `json:"userData,omitempty"`
+	Tags              map[string]string     `json:"tags,omitempty"`
 }
 
 type UserDataType string

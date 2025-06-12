@@ -89,8 +89,6 @@ spec:
           image: {{ include "karpenter.controller.image" . }}
           imagePullPolicy: {{ .Values.imagePullPolicy }}
           env:
-            - name: KUBERNETES_MIN_VERSION
-              value: "1.19.0-0"
             - name: KARPENTER_SERVICE
               value: {{ include "karpenter.fullname" . }}
           {{- with .Values.logLevel }}
@@ -131,36 +129,8 @@ spec:
             - name: PREFERENCE_POLICY
               value: "{{ . }}"
           {{- end }}
-          {{- with .Values.settings.clusterCABundle }}
-            - name: CLUSTER_CA_BUNDLE
-              value: "{{ tpl (toString .) $ }}"
-          {{- end }}
             - name: CLUSTER_NAME
               value: "{{ required "Chart cannot be installed without a valid settings.clusterName!" (tpl .Values.settings.clusterName .) }}"
-          {{- with .Values.settings.clusterEndpoint }}
-            - name: CLUSTER_ENDPOINT
-              value: "{{ tpl (toString .) $ }}"
-          {{- end }}
-          {{- with .Values.settings.isolatedVPC }}
-            - name: ISOLATED_VPC
-              value: "{{ tpl (toString .) $ }}"
-          {{- end }}
-          {{- with .Values.settings.eksControlPlane }}
-            - name: EKS_CONTROL_PLANE
-              value: "{{ tpl (toString .) $ }}"
-          {{- end }}
-          {{- with .Values.settings.vmMemoryOverheadPercent }}
-            - name: VM_MEMORY_OVERHEAD_PERCENT
-              value: "{{ tpl (toString .) $ }}"
-          {{- end }}
-          {{- with .Values.settings.interruptionQueue }}
-            - name: INTERRUPTION_QUEUE
-              value: "{{ tpl (toString .) $ }}"
-          {{- end }}
-          {{- with .Values.settings.reservedENIs }}
-            - name: RESERVED_ENIS
-              value: "{{ tpl (toString .) $ }}"
-          {{- end }}
           {{- with .Values.controller.env }}
             {{- toYaml . | nindent 12 }}
           {{- end }}

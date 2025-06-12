@@ -3,6 +3,7 @@ package instance
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strings"
 	"time"
 
@@ -12,14 +13,14 @@ import (
 	"github.com/vmware/govmomi/object"
 	models "github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	karpv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 	corecloudprovider "sigs.k8s.io/karpenter/pkg/cloudprovider"
 )
 
 type Provider interface {
-	Create(context.Context, *v1alpha1.VsphereNodeClass, *karpv1.NodeClaim, []*corecloudprovider.InstanceType, string) (*Instance, error)
+	Create(context.Context, *v1alpha1.VsphereNodeClass, *karpv1.NodeClaim, []*corecloudprovider.InstanceType) (*Instance, error)
 	Get(context.Context, string) (*Instance, error)
 	List(context.Context) ([]*Instance, error)
 	Delete(context.Context, string) error
@@ -29,15 +30,13 @@ var _ Provider = (*DefaultProvider)(nil)
 
 type DefaultProvider struct {
 	ClusterName string
-	VsphereZone string
 	kubeClient  kubernetes.Interface
 	Finder      *finder.Provider
 }
 
-func NewDefaultProvider(kube kubernetes.Interface, finder *finder.Provider, clusterName, zone string) *DefaultProvider {
+func NewDefaultProvider(kube kubernetes.Interface, finder *finder.Provider, clusterName string) *DefaultProvider {
 	return &DefaultProvider{
 		ClusterName: clusterName,
-		VsphereZone: zone,
 		kubeClient:  kube,
 		Finder:      finder,
 	}
@@ -107,19 +106,20 @@ func (p *DefaultProvider) Create(
 	ctx context.Context,
 	class *v1alpha1.VsphereNodeClass,
 	claim *karpv1.NodeClaim,
-	instanceTypes []*corecloudprovider.InstanceType, poolName string) (*Instance, error) {
+	instanceTypes []*corecloudprovider.InstanceType) (*Instance, error) {
 
 	instanceType := instanceTypes[0] // For simplicity, we take the first instance type.
 	VMName := GenerateVMName(p.ClusterName, claim.Name)
 	instanceTags := map[string]string{
 		v1alpha1.ClusterNameTagKey:   p.ClusterName,
 		v1alpha1.LabelNodeClass:      class.Name,
-		karpv1.NodePoolLabelKey:      poolName,
-		corev1.LabelTopologyZone:     p.VsphereZone,
+		karpv1.NodePoolLabelKey:      claim.Labels[karpv1.NodePoolLabelKey],
 		v1alpha1.LabelInstanceSize:   instanceType.Name,
 		v1alpha1.LabelInstanceCPU:    fmt.Sprintf("%d", instanceType.Capacity.Cpu().Value()),
 		v1alpha1.LabelInstanceMemory: fmt.Sprintf("%d", utils.GiToMb(instanceType.Capacity.Memory().ToDec().Value())),
 	}
+
+	maps.Copy(instanceTags, class.Spec.Tags)
 
 	cloneSpec, err := p.GenerateVMSpec(ctx, class, VMName, instanceType)
 	if err != nil {
@@ -196,21 +196,21 @@ func (p *DefaultProvider) List(ctx context.Context) ([]*Instance, error) {
 	vms, err := p.Finder.ListVMs(ctx)
 	//
 	if err != nil {
-		fmt.Printf("Failed to list VMs: %v\n", err)
+		log.FromContext(ctx).Error(err, "")
 	}
 	for _, vm := range vms {
 		image := getImageFromAnnotation(vm)
 		tags, err := p.Finder.TagsFromVM(ctx, vm)
 		if err != nil {
-			fmt.Printf("Failed to get tags for VM %s: %v\n", vm.Name(), err)
+			log.FromContext(ctx).Error(err, fmt.Sprintf("failed to get tags for VM %s", vm.Name()))
 		}
 		ps, err := vm.PowerState(ctx)
 		if err != nil {
-			fmt.Printf("Failed to get power state for VM %s: %v\n", vm.Name(), err)
+			log.FromContext(ctx).Error(err, fmt.Sprintf("failed to get power state for VM %s", vm.Name()))
 		}
 		creationDate, err := extractCreationDate(ctx, vm)
 		if err != nil {
-			fmt.Printf("Failed to extract creation date for VM %s: %v\n", vm.Name(), err)
+			log.FromContext(ctx).Error(err, fmt.Sprintf("failed to extract creation date for VM %s", vm.Name()))
 		}
 		instances = append(instances, NewInstance(vm, vm.UUID(ctx), image, string(ps), vm.Name(), *creationDate, tags))
 	}
@@ -224,7 +224,7 @@ func (p *DefaultProvider) Get(ctx context.Context, vmID string) (*Instance, erro
 	}
 	tags, err := p.Finder.TagsFromVM(ctx, vm)
 	if err != nil {
-		fmt.Printf("Failed to get tags for VM %s: %v\n", vm.Name(), err)
+		log.FromContext(ctx).Error(err, fmt.Sprintf("failed to get tags for VM %s", vm.Name()))
 	}
 	instance := NewInstanceFromVM(ctx, vm, time.Now(), tags)
 	return instance, nil
