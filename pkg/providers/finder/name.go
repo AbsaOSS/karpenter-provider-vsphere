@@ -4,61 +4,48 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
 	corecloudprovider "sigs.k8s.io/karpenter/pkg/cloudprovider"
 )
 
 func (p *Provider) PoolByName(ctx context.Context, name string, dc *object.Datacenter) (*object.ResourcePool, error) {
-	vfinder := find.NewFinder(p.Client, true)
-	vfinder.SetDatacenter(dc)
+	p.FindClient.SetDatacenter(dc)
 	poolPath := fmt.Sprintf("/%s/host/%s/Resources", dc.Name(), name)
-	pool, err := vfinder.ResourcePool(ctx, poolPath)
+	pool, err := p.FindClient.ResourcePool(ctx, poolPath)
 	return pool, err
 }
 
 func (p *Provider) DatastoreByName(ctx context.Context, name string) (*object.Datastore, error) {
-	vfinder := find.NewFinder(p.Client, true)
-	datastore, err := vfinder.Datastore(ctx, name)
-	return datastore, err
+	return p.FindClient.Datastore(ctx, name)
 }
 
 func (p *Provider) NetworkByName(ctx context.Context, name string) (*object.NetworkReference, error) {
-	vfinder := find.NewFinder(p.Client, true)
-	network, err := vfinder.Network(ctx, name)
+	network, err := p.FindClient.Network(ctx, name)
 	return &network, err
 }
 
 func (p *Provider) DCByName(ctx context.Context, name string) (*object.Datacenter, error) {
-	vfinder := find.NewFinder(p.Client, true)
 	dcPath := fmt.Sprintf("/%s", name)
-	dc, err := vfinder.Datacenter(ctx, dcPath)
-	return dc, err
+	return p.FindClient.Datacenter(ctx, dcPath)
 }
 
 func (p *Provider) VMByName(ctx context.Context, name string) (*object.VirtualMachine, error) {
-	vfinder := find.NewFinder(p.Client, true)
 	dc, err := p.GetDC(ctx)
 	if err != nil {
 		return nil, err
 	}
-	vfinder.SetDatacenter(dc)
-	vm, err := vfinder.VirtualMachine(ctx, name)
-	if err != nil {
-		return nil, err
-	}
-	return vm, nil
+	p.FindClient.SetDatacenter(dc)
+	return p.FindClient.VirtualMachine(ctx, name)
 }
 
 func (p *Provider) ImageByPattern(ctx context.Context, pattern string) (*object.VirtualMachine, error) {
-	vfinder := find.NewFinder(p.Client, true)
 	dc, err := p.GetDC(ctx)
 	if err != nil {
 		return nil, err
 	}
-	vfinder.SetDatacenter(dc)
+	p.FindClient.SetDatacenter(dc)
 
-	vms, err := vfinder.VirtualMachineList(ctx, pattern)
+	vms, err := p.FindClient.VirtualMachineList(ctx, pattern)
 	if err != nil {
 		return nil, err
 	}
