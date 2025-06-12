@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.3](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.0.2...v0.0.3) (2025-06-12)
+
+
+### Miscellaneous Chores
+
+* update README and minor cleanups ([18e1db7](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/18e1db7e52a945580e706377038c5945456fc45f))
+
 ## [0.0.2](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.0.2...v0.0.2) (2025-06-11)
 
 
