@@ -89,8 +89,7 @@ func (c *CloudProvider) Create(ctx context.Context, nodeClaim *karpv1.NodeClaim)
 	if len(instanceTypes) == 0 {
 		return nil, cloudprovider.NewInsufficientCapacityError(fmt.Errorf("all requested instance types were unavailable during launch"))
 	}
-	nodePoolName := nodeClaim.Labels[karpv1.NodePoolLabelKey]
-	instance, err := c.instanceProvider.Create(ctx, nodeClass, nodeClaim, instanceTypes, nodePoolName)
+	instance, err := c.instanceProvider.Create(ctx, nodeClass, nodeClaim, instanceTypes)
 	if err != nil {
 		return nil, cloudprovider.NewCreateError(fmt.Errorf("creating instance failed, %w", err), CreateInstanceFailedReason, err.Error())
 	}

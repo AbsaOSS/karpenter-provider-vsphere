@@ -62,7 +62,6 @@ func NewOperator(ctx context.Context, operator *operator.Operator) (context.Cont
 		inClusterClient,
 		finderProvider,
 		options.FromContext(ctx).ClusterName,
-		options.FromContext(ctx).VsphereZone,
 	)
 	return ctx, &Operator{
 		Operator:                     operator,

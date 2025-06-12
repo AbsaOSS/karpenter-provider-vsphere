@@ -8,6 +8,7 @@ import (
 	"github.com/vmware/govmomi/vapi/tags"
 	"github.com/vmware/govmomi/vim25/types"
 	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 func (t *Provider) getObjectByType(ctx context.Context, tag *tags.Tag, objT string) (*types.ManagedObjectReference, error) {
@@ -164,7 +165,7 @@ func getCategoryObject(name string) *tags.Category {
 func (t *Provider) TagsFromVM(ctx context.Context, vm *object.VirtualMachine) (map[string]string, error) {
 	tagsAttached, err := t.TagManager.ListAttachedTags(ctx, vm.Reference())
 	if err != nil {
-		fmt.Printf("Failed to list tags for VM %s: %v\n", vm.Name(), err)
+		log.FromContext(ctx).Error(err, fmt.Sprintf("failed to list tags for VM %s", vm.Name()))
 	}
 	return extractTagInfo(ctx, t.TagManager, tagsAttached)
 

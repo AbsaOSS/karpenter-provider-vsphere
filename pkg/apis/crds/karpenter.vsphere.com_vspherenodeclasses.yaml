@@ -135,6 +135,10 @@ spec:
                     - message: empty tag keys or values aren't supported
                       rule: self.all(k, k != '' && self[k] != '')
                 type: object
+              tags:
+                additionalProperties:
+                  type: string
+                type: object
               userData:
                 properties:
                   templateBase64:
