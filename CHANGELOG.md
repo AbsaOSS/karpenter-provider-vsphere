@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.4](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.0.3...v0.0.4) (2025-06-12)
+
+
+### Bug Fixes
+
+* Reuse finder instance ([98b9c2a](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/98b9c2a9ecc6d4f8f671bd690f515d8365ec3012))
+
 ## [0.0.3](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.0.2...v0.0.3) (2025-06-12)
 
 
