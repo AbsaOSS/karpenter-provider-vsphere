@@ -198,6 +198,9 @@ func (p *DefaultProvider) List(ctx context.Context) ([]*Instance, error) {
 	if err != nil {
 		log.FromContext(ctx).Error(err, "")
 	}
+	if len(vms) < 1 {
+		return instances, nil
+	}
 	for _, vm := range vms {
 		image := getImageFromAnnotation(vm)
 		tags, err := p.Finder.TagsFromVM(ctx, vm)

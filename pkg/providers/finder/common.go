@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
+	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/vim25/mo"
 )
@@ -86,7 +87,7 @@ func (p *Provider) GetFolder(ctx context.Context, f string) (*object.Folder, err
 		return nil, err
 	}
 	p.FindClient.SetDatacenter(dc)
-	return p.FindClient.Folder(ctx, f)
+	return p.FindClient.Folder(ctx, fmt.Sprintf("vm/%s", f))
 }
 
 func (p *Provider) ListVMs(ctx context.Context) ([]*object.VirtualMachine, error) {
@@ -100,6 +101,11 @@ func (p *Provider) ListVMs(ctx context.Context) ([]*object.VirtualMachine, error
 		return nil, err
 	}
 	// GetDC and list in given DC or all DCs
-	return p.FindClient.VirtualMachineList(ctx, folder.InventoryPath+"/*")
-
+	vms, err := p.FindClient.VirtualMachineList(ctx, folder.InventoryPath+"/*")
+	if err != nil {
+		if _, ok := err.(*find.NotFoundError); !ok {
+			return nil, err
+		}
+	}
+	return vms, nil
 }
