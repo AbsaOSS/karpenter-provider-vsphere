@@ -11,27 +11,37 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-func (t *Provider) getObjectByType(ctx context.Context, tag *tags.Tag, objT string) (*types.ManagedObjectReference, error) {
-	objs, err := t.TagManager.ListAttachedObjects(ctx, tag.ID)
-	if err != nil {
-		return nil, err
-	}
-	for _, obj := range objs {
-		if obj.Reference().Type == objT {
-			objRef := obj.Reference()
-			return &objRef, nil
+func (t *Provider) getObjectByType(ctx context.Context, tags []*tags.Tag, objT string) (*types.ManagedObjectReference, error) {
+	objTagCount := map[types.ManagedObjectReference]int{}
+	for _, tag := range tags {
+		objs, err := t.TagManager.ListAttachedObjects(ctx, tag.ID)
+		if err != nil {
+			return nil, err
+		}
+		for _, obj := range objs {
+			if obj.Reference().Type == objT {
+				objTagCount[obj.Reference()]++
+			}
 		}
 	}
-	return nil, nil
+	for obj, count := range objTagCount {
+		if count == len(tags) {
+			return &obj, nil
+		}
+	}
+	return nil, fmt.Errorf("no %s objects matching tag count %d", objT, len(tags))
 }
 
-func (t *Provider) getObjectByTag(ctx context.Context, tag map[string]string, typeName string) (object.Reference, error) {
-	k, v := extractKV(tag)
-	id, err := t.getTagID(ctx, k, v)
-	if err != nil {
-		return nil, err
+func (t *Provider) getObjectByTag(ctx context.Context, taglist map[string]string, typeName string) (object.Reference, error) {
+	var vsphereTags []*tags.Tag
+	for k, v := range taglist {
+		tag, err := t.getTagID(ctx, k, v)
+		if err != nil {
+			return nil, err
+		}
+		vsphereTags = append(vsphereTags, tag)
 	}
-	obj, err := t.getObjectByType(ctx, id, typeName)
+	obj, err := t.getObjectByType(ctx, vsphereTags, typeName)
 	if err != nil {
 		return nil, err
 	}
@@ -44,8 +54,17 @@ func (t *Provider) DCByTag(ctx context.Context, tag map[string]string) (*object.
 }
 
 func (t *Provider) PoolByTag(ctx context.Context, tag map[string]string) (*object.ResourcePool, error) {
-	ref, err := t.getObjectByTag(ctx, tag, "ResourcePool")
-	return ref.(*object.ResourcePool), err
+	ref, err := t.getObjectByTag(ctx, tag, "ClusterComputeResource")
+	if err != nil {
+		return nil, err
+	}
+	refObj := ref.(*object.ClusterComputeResource)
+	return GetRootResourcePool(ctx, refObj)
+}
+
+func GetRootResourcePool(ctx context.Context, cluster *object.ClusterComputeResource) (*object.ResourcePool, error) {
+	// This returns the root resource pool of the cluster
+	return cluster.ResourcePool(ctx)
 }
 
 func (t *Provider) NetworkByTag(ctx context.Context, tag map[string]string) (*object.NetworkReference, error) {
@@ -74,19 +93,9 @@ func (t *Provider) ImageByTag(ctx context.Context, tag map[string]string) (*obje
 	}
 	return vm, nil
 }
-func extractKV(tags map[string]string) (string, string) {
-	var tagKey string
-	var tagValue string
-	for k, v := range tags {
-		tagKey = k
-		tagValue = v
-		break
-	}
-	return tagKey, tagValue
-}
 
 func (t *Provider) getTagID(ctx context.Context, k, v string) (*tags.Tag, error) {
-	return t.TagManager.GetTagForCategory(ctx, k, v)
+	return t.TagManager.GetTagForCategory(ctx, v, k)
 }
 
 func (t *Provider) TagInstance(ctx context.Context, obj types.ManagedObjectReference, tags map[string]string) error {

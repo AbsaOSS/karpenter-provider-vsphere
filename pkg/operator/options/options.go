@@ -22,7 +22,6 @@ type Options struct {
 	VsphereUsername string
 	VspherePassword string
 	VsphereFolder   string
-	VsphereZone     string
 	VsphereInsecure bool
 }
 
@@ -35,7 +34,6 @@ func (o *Options) AddFlags(fs *coreoptions.FlagSet) {
 	fs.StringVar(&o.VspherePassword, "vsphere-password", env.WithDefaultString("GOVC_PASSWORD", ""), "[REQUIRED] The vSphere password to use for the vSphere provider")
 	fs.StringVar(&o.VsphereFolder, "vsphere-path", env.WithDefaultString("VSPHERE_FOLDER", ""), "[REQUIRED] The vSphere path to use for the vSphere provider")
 	fs.BoolVar(&o.VsphereInsecure, "vsphere-insecure", env.WithDefaultBool("GOVC_INSECURE", false), "[REQUIRED] The vSphere insecure flag to use for the vSphere provider")
-	fs.StringVar(&o.VsphereZone, "vsphere-zone", env.WithDefaultString("VSPHERE_ZONE", ""), "[REQUIRED] The vSphere zone to use for the vSphere provider")
 }
 
 func (o *Options) ToContext(ctx context.Context) context.Context {

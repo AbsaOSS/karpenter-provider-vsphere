@@ -42,7 +42,7 @@ type ResPoolSelctorTerm struct {
 	Tags map[string]string `json:"tags,omitempty"`
 	// Name is optional ResourcePoolName
 	// +optional
-	Name string `json:"id,omitempty"`
+	Name string `json:"name,omitempty"`
 }
 
 type DatastoreSelectorTerm struct {
@@ -54,7 +54,7 @@ type DatastoreSelectorTerm struct {
 	Tags map[string]string `json:"tags,omitempty"`
 	// Name is optional DatastoreName
 	// +optional
-	Name string `json:"id,omitempty"`
+	Name string `json:"name,omitempty"`
 }
 
 type NetworkSelectorTerm struct {
@@ -66,7 +66,7 @@ type NetworkSelectorTerm struct {
 	Tags map[string]string `json:"tags,omitempty"`
 	// Name is optional NetworkName
 	// +optional
-	Name string `json:"id,omitempty"`
+	Name string `json:"name,omitempty"`
 }
 type DCSelectorTerm struct {
 	// Tags is a map of key/value tags used to select subnets

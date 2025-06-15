@@ -45,7 +45,7 @@ spec:
             properties:
               computeSelector:
                 properties:
-                  id:
+                  name:
                     description: Name is optional ResourcePoolName
                     type: string
                   tags:
@@ -62,7 +62,7 @@ spec:
                 type: object
               datastoreSelector:
                 properties:
-                  id:
+                  name:
                     description: Name is optional DatastoreName
                     type: string
                   tags:
@@ -120,7 +120,7 @@ spec:
                 type: array
               networkSelector:
                 properties:
-                  id:
+                  name:
                     description: Name is optional NetworkName
                     type: string
                   tags:
