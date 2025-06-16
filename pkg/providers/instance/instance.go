@@ -142,10 +142,6 @@ func (p *DefaultProvider) Create(
 	if err != nil {
 		return nil, fmt.Errorf("failed to find cloned VM: %w", err)
 	}
-	err = p.Finder.TagInstance(ctx, vm.Reference(), instanceTags)
-	if err != nil {
-		return nil, err
-	}
 
 	err = p.Finder.TagInstance(ctx, vm.Reference(), instanceTags)
 	if err != nil {
@@ -183,12 +179,13 @@ func GenerateVMName(cluster, claim string) string {
 }
 
 func getImageFromAnnotation(vm *object.VirtualMachine) string {
-	var annotation string
-	err := vm.Properties(context.Background(), vm.Reference(), []string{"config.config"}, &annotation)
-	if err != nil {
-		annotation = "image_not_found"
+	var annotation models.VirtualMachine
+	err := vm.Properties(context.Background(), vm.Reference(), []string{"config.annotation"}, &annotation)
+	if err != nil && &annotation != nil {
+		annotation.Config.Annotation = "image_not_found"
+		log.Log.Info(err.Error())
 	}
-	return strings.TrimPrefix(annotation, "cloned_from:")
+	return strings.TrimPrefix(annotation.Config.Annotation, "cloned_from:")
 }
 
 func (p *DefaultProvider) List(ctx context.Context) ([]*Instance, error) {
