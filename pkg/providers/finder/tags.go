@@ -50,6 +50,9 @@ func (t *Provider) getObjectByTag(ctx context.Context, taglist map[string]string
 
 func (t *Provider) DCByTag(ctx context.Context, tag map[string]string) (*object.Datacenter, error) {
 	ref, err := t.getObjectByTag(ctx, tag, "Datacenter")
+	if ref == nil {
+		return nil, fmt.Errorf("failed to get DC by Tag return is %v", ref)
+	}
 	return ref.(*object.Datacenter), err
 }
 
@@ -57,6 +60,9 @@ func (t *Provider) PoolByTag(ctx context.Context, tag map[string]string) (*objec
 	ref, err := t.getObjectByTag(ctx, tag, "ClusterComputeResource")
 	if err != nil {
 		return nil, err
+	}
+	if ref == nil {
+		return nil, fmt.Errorf("failed to get Pool by Tag return is %v", ref)
 	}
 	refObj := ref.(*object.ClusterComputeResource)
 	return GetRootResourcePool(ctx, refObj)
@@ -72,6 +78,9 @@ func (t *Provider) NetworkByTag(ctx context.Context, tag map[string]string) (*ob
 	if err != nil {
 		return nil, err
 	}
+	if ref == nil {
+		return nil, fmt.Errorf("failed to get Network by Tag return is %v", ref)
+	}
 	netObj := ref.(*object.Network)
 	var netRef object.NetworkReference = netObj
 	return &netRef, nil
@@ -79,6 +88,9 @@ func (t *Provider) NetworkByTag(ctx context.Context, tag map[string]string) (*ob
 
 func (t *Provider) DatastoreByTag(ctx context.Context, tag map[string]string) (*object.Datastore, error) {
 	ref, err := t.getObjectByTag(ctx, tag, "Datastore")
+	if ref == nil {
+		return nil, fmt.Errorf("failed to get Datastore by Tag return is %v", ref)
+	}
 	return ref.(*object.Datastore), err
 }
 
@@ -86,6 +98,9 @@ func (t *Provider) ImageByTag(ctx context.Context, tag map[string]string) (*obje
 	ref, err := t.getObjectByTag(ctx, tag, "VirtualMachine")
 	if err != nil {
 		return nil, err
+	}
+	if ref == nil {
+		return nil, fmt.Errorf("failed to get Template by Tag return is %v", ref)
 	}
 	vm := ref.(*object.VirtualMachine)
 	if !t.isTemplate(ctx, vm) {
