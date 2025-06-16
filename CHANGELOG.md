@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.5](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.0.4...v0.0.5) (2025-06-16)
+
+
+### Bug Fixes
+
+* don't tag twice, fix image annotation ([f3517d6](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/f3517d65e42626767a1c2ac454c999020ed806c8))
+
 ## [0.0.4](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.0.3...v0.0.4) (2025-06-12)
 
 
