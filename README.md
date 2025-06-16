@@ -21,9 +21,6 @@ Besides `VSPHERE_PATH` (vsphere folder to place virtulal machines on), all place
 * `.spec.imageSelector` - VM Template to use for VM Clone
 
 All selectors have `tag` and `name` properties, those are mutually exclusive. Karpenter will find a resource either by Tag or Name.
-[!NOTE]
-Due to nature of Vsphere tags. Only 1 uniquie tag could be selected to identify desired resource
-
 
 * `.spec.instanceTypes` - a list of desired instance types, in a following format: `%cpu-%mem-%os`, e.g. 8-16-linux
 * `.spec.diskSize` - a desired root volume size in Gigabytes
@@ -38,3 +35,5 @@ Due to nature of Vsphere tags. Only 1 uniquie tag could be selected to identify 
   - `type` - Either `ignition` or `cloud-init`
   - `templateBase64` - A base64 encoded template
   - `values` - a v1.Secret reference (name/namespace) to key/values used in a template
+
+[!NOTE] user-data should hanndle `karpenter.sh/unregistered` taint to the node
