@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.0](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.0.5...v0.1.0) (2025-06-17)
+
+
+### Features
+
+* rework instsance types to include zone/region ([502cedd](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/502cedd3316944bbbcf8e24fdc20ee814813f3e1))
+
+
+### Bug Fixes
+
+* avoid nil reference ([3df5079](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/3df5079fb59d0a11f1c3e45c25ea4f38a795e583))
+
 ## [0.0.5](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.0.4...v0.0.5) (2025-06-16)
 
 
