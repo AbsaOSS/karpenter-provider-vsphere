@@ -4,7 +4,6 @@ import (
 	"context"
 	stderrors "errors"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
@@ -114,6 +113,8 @@ func (c *CloudProvider) instanceToNodeClaim(i *instance.Instance, instanceType *
 		nodeClaim.Status.Capacity = lo.PickBy(instanceType.Capacity, resourceFilter)
 		nodeClaim.Status.Allocatable = lo.PickBy(instanceType.Allocatable(), resourceFilter)
 	}
+	labels[corev1.LabelInstanceTypeStable] = instanceType.Name
+
 	//TODO: Figure out TopologyZone label
 	labels[corev1.LabelTopologyZone] = i.Tags[corev1.LabelTopologyZone]
 
@@ -277,22 +278,9 @@ func instanceTypesFromNodeClass(nodeClass *v1alpha1.VsphereNodeClass) []*cloudpr
 	instanceTypes := []*cloudprovider.InstanceType{}
 	var cpu, memory, os string
 	for _, t := range nodeClass.Spec.InstanceTypes {
-		instanceTypeRegex := regexp.MustCompile(`(?P<CPU>.*)-(?P<Memory>.*)-(?P<OS>.*)`)
-		matches := instanceTypeRegex.FindStringSubmatch(t)
-		if matches == nil {
-			fmt.Printf("instance type %s does not match expected format\n", t)
-		}
-		for i, name := range instanceTypeRegex.SubexpNames() {
-			if name == "CPU" {
-				cpu = matches[i]
-			}
-			if name == "Memory" {
-				memory = matches[i]
-			}
-			if name == "OS" {
-				os = matches[i]
-			}
-		}
+		cpu = t.CPU
+		memory = t.Memory
+		os = strings.ToLower(t.OS)
 		typeName := fmt.Sprintf("vsphere-vm.cpu-%s.mem-%sgb.os-%s", cpu, memory, os)
 		instanceType := &cloudprovider.InstanceType{
 			Name: typeName,
@@ -304,7 +292,7 @@ func instanceTypesFromNodeClass(nodeClass *v1alpha1.VsphereNodeClass) []*cloudpr
 			Capacity: corev1.ResourceList{
 				corev1.ResourceCPU:              resource.MustParse(cpu),
 				corev1.ResourceMemory:           resource.MustParse(memory),
-				corev1.ResourcePods:             resource.MustParse("110"),
+				corev1.ResourcePods:             resource.MustParse(t.MaxPods),
 				corev1.ResourceEphemeralStorage: resource.MustParse(utils.GiToByteAsString(nodeClass.Spec.DiskSize)),
 			},
 			//TODO: compute kubelet overhead
@@ -312,7 +300,7 @@ func instanceTypesFromNodeClass(nodeClass *v1alpha1.VsphereNodeClass) []*cloudpr
 			Offerings: []*cloudprovider.Offering{
 				{
 					Requirements: scheduling.NewRequirements(
-						scheduling.NewRequirement(corev1.LabelTopologyZone, corev1.NodeSelectorOpIn)),
+						scheduling.NewRequirement(corev1.LabelTopologyZone, corev1.NodeSelectorOpIn, t.Zone)),
 					Price:     float64(0.0),
 					Available: true,
 				},

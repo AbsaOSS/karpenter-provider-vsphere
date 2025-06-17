@@ -119,7 +119,22 @@ spec:
                 type: object
               instanceTypes:
                 items:
-                  type: string
+                  properties:
+                    arch:
+                      type: string
+                    cpu:
+                      type: string
+                    maxPods:
+                      type: string
+                    memory:
+                      type: string
+                    os:
+                      type: string
+                    region:
+                      type: string
+                    zone:
+                      type: string
+                  type: object
                 type: array
               networkSelector:
                 properties:

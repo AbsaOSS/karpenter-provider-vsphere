@@ -77,8 +77,6 @@ func (c *Controller) updateNodeClaimHash(ctx context.Context, nodeClass *v1alpha
 				v1alpha1.AnnotationVsphereNodeClassHashVersion: v1alpha1.VsphereNodeClassHashVersion,
 			})
 
-			// Any NodeClaim that is already drifted will remain drifted if the karpenter.azure.com/nodepool-hash-version doesn't match
-			// Since the hashing mechanism has changed we will not be able to determine if the drifted status of the NodeClaim has changed
 			if nc.StatusConditions().Get(karpv1.ConditionTypeDrifted) == nil {
 				nc.Annotations = lo.Assign(nc.Annotations, map[string]string{
 					v1alpha1.AnnotationVsphereNodeClassHash: nodeClass.Hash(),

@@ -2,6 +2,8 @@
 
 Karpenter provider for VMWare Vsphere
 
+# !!!Early alpha - NOT for Production use!!!
+
 # Required flags
 
 | Flag             | Environment variable | Required |
@@ -22,7 +24,13 @@ Besides `VSPHERE_PATH` (vsphere folder to place virtulal machines on), all place
 
 All selectors have `tag` and `name` properties, those are mutually exclusive. Karpenter will find a resource either by Tag or Name.
 
-* `.spec.instanceTypes` - a list of desired instance types, in a following format: `%cpu-%mem-%os`, e.g. 8-16-linux
+* `.spec.instanceTypes` - a list of desired instance types:
+  - `os`: linux
+  - `cpu`: number of CPUS
+  - `memory`: amount of memory in gigabytes
+  - `region`: region topology
+  - `zone`: zone topology
+  - `maxPods`: maxPods to pass to kubelet (not implemented)
 * `.spec.diskSize` - a desired root volume size in Gigabytes
 
 * `.spec.tags` - a list of tags to apply to Karpenter managed virtual machines
