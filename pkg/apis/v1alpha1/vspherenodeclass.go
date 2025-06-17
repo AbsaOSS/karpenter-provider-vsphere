@@ -98,7 +98,7 @@ type VsphereNodeClassSpec struct {
 	Datacenter        DCSelectorTerm        `json:"dcSelector,omitempty"`
 	ImageSelector     ImageSelectorTerm     `json:"imageSelector,omitempty"`
 	DiskSize          int64                 `json:"diskSize,omitempty"`
-	InstanceTypes     []string              `json:"instanceTypes,omitempty"`
+	InstanceTypes     []InstanceType        `json:"instanceTypes,omitempty"`
 	UserData          UserData              `json:"userData,omitempty"`
 	Tags              map[string]string     `json:"tags,omitempty"`
 }
@@ -124,6 +124,8 @@ type InstanceType struct {
 	MaxPods string `json:"maxPods,omitempty"`
 	OS      string `json:"os,omitempty"`
 	Arch    string `json:"arch,omitempty"`
+	Zone    string `json:"zone,omitempty"`
+	Region  string `json:"region,omitempty"`
 }
 
 func (nc *VsphereNodeClass) Hash() string {

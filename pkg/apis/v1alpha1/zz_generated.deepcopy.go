@@ -219,7 +219,7 @@ func (in *VsphereNodeClassSpec) DeepCopyInto(out *VsphereNodeClassSpec) {
 	in.ImageSelector.DeepCopyInto(&out.ImageSelector)
 	if in.InstanceTypes != nil {
 		in, out := &in.InstanceTypes, &out.InstanceTypes
-		*out = make([]string, len(*in))
+		*out = make([]InstanceType, len(*in))
 		copy(*out, *in)
 	}
 	out.UserData = in.UserData

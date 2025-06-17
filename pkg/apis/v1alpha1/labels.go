@@ -2,6 +2,7 @@ package v1alpha1
 
 import (
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis"
+	corev1 "k8s.io/api/core/v1"
 	coreapis "sigs.k8s.io/karpenter/pkg/apis"
 	karpv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 )
@@ -23,6 +24,7 @@ var (
 	LabelInstanceCPU                      = apis.Group + "/instance-cpu"
 	LabelInstanceMemory                   = apis.Group + "/instance-memory"
 	LabelInstanceSize                     = apis.Group + "/instance-size"
+	LabelInstanceType                     = corev1.LabelInstanceTypeStable
 	AnnotationVsphereNodeClassHashVersion = apis.Group + "/vspherenodeclass-hash-version"
 	NodeClaimTagKey                       = coreapis.Group + "/nodeclaim"
 	NodePoolTagKey                        = karpv1.NodePoolLabelKey
