@@ -3,11 +3,16 @@ package instance
 import (
 	"context"
 	"fmt"
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/operator/options"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"maps"
 	"strings"
 	"time"
 
-	v1alpha1 "github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
+	"github.com/vmware/govmomi/find"
+
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/finder"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/utils"
 	"github.com/vmware/govmomi/object"
@@ -56,10 +61,7 @@ func (p *DefaultProvider) GenerateVMSpec(ctx context.Context, class *v1alpha1.Vs
 	if err != nil {
 		return nil, fmt.Errorf("failed to get device spec: %w", err)
 	}
-	initData, err := p.GetInitData(ctx, class, name)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get init data: %w", err)
-	}
+
 	image, err := p.Finder.ResolveImage(ctx, class.Spec.ImageSelector)
 	if err != nil {
 		return nil, err
@@ -71,12 +73,12 @@ func (p *DefaultProvider) GenerateVMSpec(ctx context.Context, class *v1alpha1.Vs
 			Name:         name,
 			Annotation:   fmt.Sprintf("cloned_from:%s", image.InventoryPath),
 			NumCPUs:      int32(instanceType.Capacity.Cpu().Value()),
-			MemoryMB:     instanceType.Capacity.Memory().ToDec().Value() * 1024,
+			MemoryMB:     instanceType.Capacity.Memory().ScaledValue(resource.Mega),
 			GuestId:      string(types.VirtualMachineGuestOsIdentifierOtherLinux64Guest), // This should be adjusted based on the OS type in the instance type.
 			DeviceChange: diskAndNet,
-			ExtraConfig:  initData,
+			//			ExtraConfig:  initData,
 		},
-		PowerOn: true,
+		PowerOn: false,
 	}, nil
 }
 
@@ -120,27 +122,61 @@ func (p *DefaultProvider) Create(
 	}
 
 	maps.Copy(instanceTags, class.Spec.Tags)
-
-	cloneSpec, err := p.GenerateVMSpec(ctx, class, VMName, instanceType)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate VM spec: %w", err)
+	//Default carpenter taint
+	taints := []corev1.Taint{
+		{
+			Key:    "karpenter.sh/unregistered",
+			Value:  "true",
+			Effect: corev1.TaintEffectNoSchedule,
+		},
 	}
+	taints = append(taints, claim.Spec.Taints...)
+	controllerOpts := options.FromContext(ctx)
+	workerInitConfig := NewInitData(
+		taints,
+		VMName,
+		controllerOpts.ClusterEndpoint,
+		controllerOpts.JoinToken,
+		controllerOpts.KubeDistro,
+		controllerOpts.KubeVersion,
+		class.Spec.UserData.Type,
+		class.Spec.UserData.AdditionalUserdata,
+	)
 
+	userData, err := p.GetInitData(workerInitConfig)
+	if err != nil {
+		return nil, err
+	}
 	vmTemplate, err := p.Finder.ResolveImage(ctx, class.Spec.ImageSelector)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find VM template: %w", err)
 	}
+	cloneSpec, err := p.GenerateVMSpec(ctx, class, VMName, instanceType)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate VM spec: %w", err)
+	}
+	// add Init data
+	cloneSpec.Config.ExtraConfig = userData
 	vmFolder, err := p.Finder.ResolveFolder(ctx)
 	if err != nil {
 		return nil, err
 	}
+
+	vm, err := p.Finder.VMByName(ctx, VMName)
+	if err != nil {
+		if err.(*find.NotFoundError) == nil {
+			return nil, err
+		}
+	}
+
 	task, err := vmTemplate.Clone(ctx, vmFolder, GenerateVMName(p.ClusterName, claim.Name), *cloneSpec)
 	if err != nil {
 		return nil, fmt.Errorf("failed to clone VM: %w", err)
 	}
-	vm, err := p.Finder.VMByName(ctx, VMName)
+
+	vm, err = p.Finder.VMByName(ctx, VMName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find cloned VM: %w", err)
+		return nil, err
 	}
 
 	err = p.Finder.TagInstance(ctx, vm.Reference(), instanceTags)
@@ -152,13 +188,21 @@ func (p *DefaultProvider) Create(
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract creation date: %w", err)
 	}
-	powerState, err := vm.PowerState(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get power state: %w", err)
-	}
+
 	err = task.Wait(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("task failed: %w", err)
+	}
+
+	powerOnTask, err := vm.PowerOn(ctx)
+	err = powerOnTask.Wait(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("task failed: %w", err)
+	}
+
+	powerState, err := vm.PowerState(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get power state: %w", err)
 	}
 	return NewInstance(vm, vm.UUID(ctx), vmTemplate.InventoryPath, string(powerState), vm.Name(), *creationDate, instanceTags), err
 }

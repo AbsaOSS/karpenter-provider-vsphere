@@ -18,17 +18,24 @@ func init() {
 
 type Options struct {
 	ClusterName     string
+	ClusterEndpoint string
+	JoinToken       string
 	VsphereEndpoint string
 	VsphereUsername string
 	VspherePassword string
 	VsphereFolder   string
 	VsphereInsecure bool
+	KubeDistro      string
+	KubeVersion     string
 }
 
 type optionsKey struct{}
 
 func (o *Options) AddFlags(fs *coreoptions.FlagSet) {
 	fs.StringVar(&o.ClusterName, "cluster-name", env.WithDefaultString("CLUSTER_NAME", ""), "[REQUIRED] The name of the kubernetes cluster to use")
+	fs.StringVar(&o.ClusterEndpoint, "cluster-endpoint", env.WithDefaultString("CLUSTER_ENDPOINT", ""), "[REQUIRED] Kubernetes API endpoint to use for nodes to join")
+	fs.StringVar(&o.JoinToken, "join-token", env.WithDefaultString("JOIN_TOKEN", ""), "[REQUIRED] kubernetes join token")
+	fs.StringVar(&o.KubeDistro, "kube-distro", env.WithDefaultString("KUBE_DISTRO", ""), "[REQUIRED] The name of the kubernetes distribution to use")
 	fs.StringVar(&o.VsphereEndpoint, "vsphere-endpoint", env.WithDefaultString("GOVC_URL", ""), "[REQUIRED] The vSphere endpoint to use for the vSphere provider")
 	fs.StringVar(&o.VsphereUsername, "vsphere-username", env.WithDefaultString("GOVC_USERNAME", ""), "[REQUIRED] The vSphere username to use for the vSphere provider")
 	fs.StringVar(&o.VspherePassword, "vsphere-password", env.WithDefaultString("GOVC_PASSWORD", ""), "[REQUIRED] The vSphere password to use for the vSphere provider")
@@ -68,14 +75,20 @@ func (o *Options) Parse(fs *coreoptions.FlagSet, args ...string) error {
 }
 
 func (o *Options) String() string {
-	json, err := json.Marshal(o)
+	opts, err := json.Marshal(o)
 	if err != nil {
 		return "couldn't marshal options JSON"
 	}
 
-	return string(json)
+	return string(opts)
 }
 
 func (o *Options) Validate() error {
+	if o.ClusterEndpoint == "" {
+		return fmt.Errorf("--cluster-endpoint is required")
+	}
+	if o.KubeDistro == "rke2" && o.KubeVersion == "" {
+		return errors.New("--kube-distro option requires --kube-version")
+	}
 	return nil
 }
