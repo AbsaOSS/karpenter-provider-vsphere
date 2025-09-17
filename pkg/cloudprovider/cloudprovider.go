@@ -274,14 +274,15 @@ func (c *CloudProvider) IsDrifted(ctx context.Context, claim *karpv1.NodeClaim) 
 	return driftReason, nil
 }
 
+func toCPITypeFormat(cpu, mem, os string) string {
+	o := strings.TrimSuffix(mem, "Gi")
+	return fmt.Sprintf("%s_%s_%s", cpu, o, os)
+}
 func instanceTypesFromNodeClass(nodeClass *v1alpha1.VsphereNodeClass) []*cloudprovider.InstanceType {
 	instanceTypes := []*cloudprovider.InstanceType{}
-	var cpu, memory, os string
 	for _, t := range nodeClass.Spec.InstanceTypes {
-		cpu = t.CPU
-		memory = t.Memory
-		os = strings.ToLower(t.OS)
-		typeName := fmt.Sprintf("vsphere-vm.cpu-%s.mem-%sgb.os-%s", cpu, memory, os)
+		os := strings.ToLower(t.OS)
+		typeName := toCPITypeFormat(t.CPU, t.Memory, os)
 		instanceType := &cloudprovider.InstanceType{
 			Name: typeName,
 			Requirements: scheduling.NewRequirements(
@@ -290,8 +291,8 @@ func instanceTypesFromNodeClass(nodeClass *v1alpha1.VsphereNodeClass) []*cloudpr
 				scheduling.NewRequirement(corev1.LabelOSStable, corev1.NodeSelectorOpIn, os),
 			),
 			Capacity: corev1.ResourceList{
-				corev1.ResourceCPU:              resource.MustParse(cpu),
-				corev1.ResourceMemory:           resource.MustParse(memory),
+				corev1.ResourceCPU:              resource.MustParse(t.CPU),
+				corev1.ResourceMemory:           resource.MustParse(t.Memory),
 				corev1.ResourcePods:             resource.MustParse(t.MaxPods),
 				corev1.ResourceEphemeralStorage: resource.MustParse(utils.GiToByteAsString(nodeClass.Spec.DiskSize)),
 			},

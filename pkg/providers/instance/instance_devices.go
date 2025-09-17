@@ -12,7 +12,7 @@ import (
 
 const ethCardType = "vmxnet3"
 
-func (d *DefaultProvider) getNetworkSpecs(ctx context.Context, networkName object.NetworkReference, devices object.VirtualDeviceList) ([]types.BaseVirtualDeviceConfigSpec, error) {
+func (p *DefaultProvider) getNetworkSpecs(ctx context.Context, networkName object.NetworkReference, devices object.VirtualDeviceList) ([]types.BaseVirtualDeviceConfigSpec, error) {
 
 	deviceSpecs := []types.BaseVirtualDeviceConfigSpec{}
 

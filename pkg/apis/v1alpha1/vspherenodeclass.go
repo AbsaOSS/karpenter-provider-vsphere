@@ -5,7 +5,6 @@ import (
 
 	"github.com/mitchellh/hashstructure/v2"
 	"github.com/samber/lo"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -100,22 +99,26 @@ type VsphereNodeClassSpec struct {
 	DiskSize          int64                 `json:"diskSize,omitempty"`
 	InstanceTypes     []InstanceType        `json:"instanceTypes,omitempty"`
 	UserData          UserData              `json:"userData,omitempty"`
+	K8sDistro         Distro                `json:"k8SDistro,omitempty"`
 	Tags              map[string]string     `json:"tags,omitempty"`
 }
 
 type UserDataType string
+type Distro string
 
 const (
-	UserDataTypeCloudInit UserDataType = "cloud-init"
-	UserDataTypeIgnition  UserDataType = "ignition"
+	UserDataTypeCloudConfig UserDataType = "cloud-config"
+	UserDataTypeIgnition    UserDataType = "ignition"
+	RKE2                    string       = "rke2"
+	RKE2AirGapped           string       = "rke2airgapped"
+	KUBEADM                 string       = "kubeadm"
 )
 
 type UserData struct {
+	// +optional
 	Type UserDataType `json:"type,omitempty"`
 	// +optional
-	TemplateBase64 string `json:"templateBase64,omitempty"`
-	// +optional
-	Values corev1.SecretReference `json:"values,omitempty"`
+	AdditionalUserdata string `json:"additionalUserdata,omitempty"`
 }
 
 type InstanceType struct {
