@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.1.0...v0.2.0) (2025-10-03)
+
+
+### Features
+
+* Refactor node bootstrap ([c087f5b](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/c087f5b3c8df6ea6bdafd834077dc9e2f87f2f48))
+
 ## [0.1.0](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.0.5...v0.1.0) (2025-06-17)
 
 
