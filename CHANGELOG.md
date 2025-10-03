@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.0...v0.2.1) (2025-10-03)
+
+
+### Bug Fixes
+
+* Specify tag during ko build ([bc821d9](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/bc821d917e6aa618c76b7475099901601af8072a))
+
 ## [0.2.0](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.1.0...v0.2.0) (2025-10-03)
 
 
