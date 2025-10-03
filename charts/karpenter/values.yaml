@@ -111,7 +111,7 @@ controller:
     # -- Repository path to the controller image.
     repository: ghcr.io/absaoss/karpenter-provider-vsphere
     # -- Tag of the controller image.
-    tag: v0.2.2 # x-release-please-version
+    tag: v0.2.3 # x-release-please-version
   # -- Additional environment variables for the controller pod.
   env: []
   envFrom: []

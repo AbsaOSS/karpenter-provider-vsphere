@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.2...v0.2.3) (2025-10-03)
+
+
+### Bug Fixes
+
+* Add extraObjects to helm chart ([2125e1c](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/2125e1cdde0569a8158d3f872dd34b5fae8e6086))
+
 ## [0.2.2](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.1...v0.2.2) (2025-10-03)
 
 
