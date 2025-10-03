@@ -48,11 +48,13 @@ jobs:
       - uses: azure/setup-helm@v4.3.0
       - name: Login to ghcr.io
         uses: docker/login-action@v3
+        env:
+          TAG: ${{ needs.release.outputs.tag_name }}
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}          
-      - run: ko build --bare github.com/absaoss/karpenter-provider-vsphere/cmd/controller
+      - run: ko build -t $TAG --bare github.com/absaoss/karpenter-provider-vsphere/cmd/controller
       # package and push helm
       - name: package/push helm
         env:
