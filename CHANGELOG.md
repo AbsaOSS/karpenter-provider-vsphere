@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.1...v0.2.2) (2025-10-03)
+
+
+### Bug Fixes
+
+* Set TAG env on correct action ([ce5cb26](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/ce5cb26eb896da9da197cebbce5e7e308a62f84a))
+
 ## [0.2.1](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.0...v0.2.1) (2025-10-03)
 
 
