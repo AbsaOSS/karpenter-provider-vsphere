@@ -56,8 +56,9 @@ func NewOperator(ctx context.Context, operator *operator.Operator) (context.Cont
 	)
 
 	folder := options.FromContext(ctx).VsphereFolder
+	clusterName := options.FromContext(ctx).ClusterName
 
-	finderProvider := finder.NewDefaultProvider(tagClient, vsphereClient, folder)
+	finderProvider := finder.NewDefaultProvider(tagClient, vsphereClient, folder, clusterName)
 	instanceProvider := instance.NewDefaultProvider(
 		inClusterClient,
 		finderProvider,

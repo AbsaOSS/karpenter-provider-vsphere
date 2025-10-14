@@ -13,9 +13,10 @@ type Provider struct {
 	IndexClient *object.SearchIndex
 	FindClient  *find.Finder
 	Folder      string
+	ClusterName string
 }
 
-func NewDefaultProvider(tMgr *tags.Manager, client *vim25.Client, folder string) *Provider {
+func NewDefaultProvider(tMgr *tags.Manager, client *vim25.Client, folder, cluster string) *Provider {
 	idx := object.NewSearchIndex(client)
-	return &Provider{TagManager: tMgr, Client: client, IndexClient: idx, Folder: folder, FindClient: find.NewFinder(client, true)}
+	return &Provider{ClusterName: cluster, TagManager: tMgr, Client: client, IndexClient: idx, Folder: folder, FindClient: find.NewFinder(client, true)}
 }

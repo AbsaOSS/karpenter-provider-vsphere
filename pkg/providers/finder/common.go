@@ -100,8 +100,9 @@ func (p *Provider) ListVMs(ctx context.Context) ([]*object.VirtualMachine, error
 	if err != nil {
 		return nil, err
 	}
+	vmPattern := fmt.Sprintf("%s/%s*", folder.InventoryPath, p.ClusterName)
 	// GetDC and list in given DC or all DCs
-	vms, err := p.FindClient.VirtualMachineList(ctx, folder.InventoryPath+"/*")
+	vms, err := p.FindClient.VirtualMachineList(ctx, vmPattern)
 	if err != nil {
 		if _, ok := err.(*find.NotFoundError); !ok {
 			return nil, err
