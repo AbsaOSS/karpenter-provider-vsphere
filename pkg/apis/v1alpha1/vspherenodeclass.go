@@ -36,7 +36,6 @@ type ResPoolSelctorTerm struct {
 	// Tags is a map of key/value tags used to select subnets
 	// Specifying '*' for a value selects all values for a given tag key.
 	// +kubebuilder:validation:XValidation:message="empty tag keys or values aren't supported",rule="self.all(k, k != '' && self[k] != '')"
-	// +kubebuilder:validation:MaxProperties:=1
 	// +optional
 	Tags map[string]string `json:"tags,omitempty"`
 	// Name is optional ResourcePoolName
@@ -48,7 +47,6 @@ type DatastoreSelectorTerm struct {
 	// Tags is a map of key/value tags used to select subnets
 	// Specifying '*' for a value selects all values for a given tag key.
 	// +kubebuilder:validation:XValidation:message="empty tag keys or values aren't supported",rule="self.all(k, k != '' && self[k] != '')"
-	// +kubebuilder:validation:MaxProperties:=1
 	// +optional
 	Tags map[string]string `json:"tags,omitempty"`
 	// Name is optional DatastoreName
@@ -60,7 +58,6 @@ type NetworkSelectorTerm struct {
 	// Tags is a map of key/value tags used to select subnets
 	// Specifying '*' for a value selects all values for a given tag key.
 	// +kubebuilder:validation:XValidation:message="empty tag keys or values aren't supported",rule="self.all(k, k != '' && self[k] != '')"
-	// +kubebuilder:validation:MaxProperties:=1
 	// +optional
 	Tags map[string]string `json:"tags,omitempty"`
 	// Name is optional NetworkName
@@ -71,7 +68,6 @@ type DCSelectorTerm struct {
 	// Tags is a map of key/value tags used to select subnets
 	// Specifying '*' for a value selects all values for a given tag key.
 	// +kubebuilder:validation:XValidation:message="empty tag keys or values aren't supported",rule="self.all(k, k != '' && self[k] != '')"
-	// +kubebuilder:validation:MaxProperties:=1
 	// +optional
 	Tags map[string]string `json:"tags,omitempty"`
 	// Name is optional DatacenterName
@@ -82,7 +78,6 @@ type ImageSelectorTerm struct {
 	// Tags is a map of key/value tags used to select subnets
 	// Specifying '*' for a value selects all values for a given tag key.
 	// +kubebuilder:validation:XValidation:message="empty tag keys or values aren't supported",rule="self.all(k, k != '' && self[k] != '')"
-	// +kubebuilder:validation:MaxProperties:=1
 	// +optional
 	Tags map[string]string `json:"tags,omitempty"`
 	// Name is optional ImagePattern
