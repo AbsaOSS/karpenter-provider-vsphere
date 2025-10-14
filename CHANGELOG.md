@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.6](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.5...v0.2.6) (2025-10-14)
+
+
+### Bug Fixes
+
+* allow multiple Tags in ByTag selector ([e7ca6bc](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/e7ca6bc5eea92d064fb03c9e7902e51926c23197))
+
 ## [0.2.5](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.4...v0.2.5) (2025-10-14)
 
 
