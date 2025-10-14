@@ -256,6 +256,10 @@ func (p *DefaultProvider) List(ctx context.Context) ([]*Instance, error) {
 		if err != nil {
 			log.FromContext(ctx).Error(err, fmt.Sprintf("failed to extract creation date for VM %s", vm.Name()))
 		}
+		// find only VMs belonging to current cluster
+		if tags["karpneter.sh/clustername"] != p.ClusterName {
+			continue
+		}
 		instances = append(instances, NewInstance(vm, vm.UUID(ctx), image, string(ps), vm.Name(), *creationDate, tags))
 	}
 	return instances, nil

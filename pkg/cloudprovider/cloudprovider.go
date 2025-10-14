@@ -196,7 +196,7 @@ func (c *CloudProvider) List(ctx context.Context) ([]*karpv1.NodeClaim, error) {
 func (c *CloudProvider) resolveInstanceTypeFromInstance(ctx context.Context, instance *instance.Instance) (*cloudprovider.InstanceType, error) {
 	nodePool, err := c.resolveNodePoolFromInstance(ctx, instance)
 	if err != nil {
-		return nil, client.IgnoreNotFound(fmt.Errorf("resolving nodepool, %w", err))
+		return &cloudprovider.InstanceType{Name: instance.Type}, client.IgnoreNotFound(fmt.Errorf("resolving nodepool, %w", err))
 	}
 	instanceTypes, err := c.GetInstanceTypes(ctx, nodePool)
 	if err != nil {
