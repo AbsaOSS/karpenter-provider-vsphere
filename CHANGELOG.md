@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.5](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.4...v0.2.5) (2025-10-14)
+
+
+### Bug Fixes
+
+* regenerate crd after userdata handling changes ([c58b0b6](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/c58b0b66fc39d402f518abf80ef9e64c25ee75c7))
+
 ## [0.2.4](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.3...v0.2.4) (2025-10-14)
 
 
