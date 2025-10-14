@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.4](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.3...v0.2.4) (2025-10-14)
+
+
+### Bug Fixes
+
+* fix garbage collection panics ([7a9657b](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/7a9657bd4b3cc30e9f7710d82dfb1e4b70ff1658))
+
 ## [0.2.3](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.2...v0.2.3) (2025-10-03)
 
 
