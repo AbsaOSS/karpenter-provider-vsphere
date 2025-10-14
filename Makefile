@@ -10,7 +10,7 @@ KOCACHE ?= ~/.ko
 
 generate:
 	go generate ./...
-	cp  $(KARPENTER_CORE_DIR)/pkg/apis/crds/* pkg/apis/crds
+	cp  $(KARPENTER_CORE_DIR)/pkg/apis/crds/* charts/karpenter-crd/templates
 
 image: ## Build the Karpenter controller images using ko build
 	$(eval CONTROLLER_IMG=$(shell $(WITH_GOFLAGS) KOCACHE=$(KOCACHE) KO_DOCKER_REPO="$(KO_DOCKER_REPO)" ko build --bare github.com/absaoss/karpenter-provider-vsphere/cmd/controller))
