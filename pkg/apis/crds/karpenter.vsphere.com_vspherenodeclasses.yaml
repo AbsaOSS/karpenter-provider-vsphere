@@ -54,7 +54,6 @@ spec:
                     description: |-
                       Tags is a map of key/value tags used to select subnets
                       Specifying '*' for a value selects all values for a given tag key.
-                    maxProperties: 1
                     type: object
                     x-kubernetes-validations:
                     - message: empty tag keys or values aren't supported
@@ -71,7 +70,6 @@ spec:
                     description: |-
                       Tags is a map of key/value tags used to select subnets
                       Specifying '*' for a value selects all values for a given tag key.
-                    maxProperties: 1
                     type: object
                     x-kubernetes-validations:
                     - message: empty tag keys or values aren't supported
@@ -88,7 +86,6 @@ spec:
                     description: |-
                       Tags is a map of key/value tags used to select subnets
                       Specifying '*' for a value selects all values for a given tag key.
-                    maxProperties: 1
                     type: object
                     x-kubernetes-validations:
                     - message: empty tag keys or values aren't supported
@@ -108,7 +105,6 @@ spec:
                     description: |-
                       Tags is a map of key/value tags used to select subnets
                       Specifying '*' for a value selects all values for a given tag key.
-                    maxProperties: 1
                     type: object
                     x-kubernetes-validations:
                     - message: empty tag keys or values aren't supported
@@ -146,7 +142,6 @@ spec:
                     description: |-
                       Tags is a map of key/value tags used to select subnets
                       Specifying '*' for a value selects all values for a given tag key.
-                    maxProperties: 1
                     type: object
                     x-kubernetes-validations:
                     - message: empty tag keys or values aren't supported
