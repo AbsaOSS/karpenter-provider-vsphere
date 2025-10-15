@@ -15,7 +15,7 @@ kubelet-arg:
   - --cloud-provider=external
 token: {{.Token}}
 {{- if .Taints }}
-node-taints:
+node-taint:
 {{- range taints .Taints }}
   - {{ . }}
 {{- end }}

@@ -42,5 +42,3 @@ All selectors have `tag` and `name` properties, those are mutually exclusive. Ka
 * `.spec.userdata`:
   - `type` - Either `ignition` or `cloud-config`
   - `additionalUserdata` - extra init data to be merged with distribution specific
-
-[!NOTE] user-data should hanndle `karpenter.sh/unregistered` taint to the node
