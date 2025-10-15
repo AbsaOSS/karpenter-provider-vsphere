@@ -66,6 +66,7 @@ func (p *DefaultProvider) GenerateVMSpec(ctx context.Context, class *v1alpha1.Vs
 	if err != nil {
 		return nil, err
 	}
+	t := time.Now()
 	return &types.VirtualMachineCloneSpec{
 		Template: false,
 		Location: *locationSpec,
@@ -76,7 +77,7 @@ func (p *DefaultProvider) GenerateVMSpec(ctx context.Context, class *v1alpha1.Vs
 			MemoryMB:     instanceType.Capacity.Memory().ScaledValue(resource.Mega),
 			GuestId:      string(types.VirtualMachineGuestOsIdentifierOtherLinux64Guest), // This should be adjusted based on the OS type in the instance type.
 			DeviceChange: diskAndNet,
-			//			ExtraConfig:  initData,
+			CreateDate:   &t,
 		},
 		PowerOn: false,
 	}, nil
@@ -169,9 +170,14 @@ func (p *DefaultProvider) Create(
 		}
 	}
 
-	task, err := vmTemplate.Clone(ctx, vmFolder, GenerateVMName(p.ClusterName, claim.Name), *cloneSpec)
+	task, err := vmTemplate.Clone(ctx, vmFolder, VMName, *cloneSpec)
 	if err != nil {
 		return nil, fmt.Errorf("failed to clone VM: %w", err)
+	}
+
+	err = task.Wait(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("task failed: %w", err)
 	}
 
 	vm, err = p.Finder.VMByName(ctx, VMName)
@@ -186,12 +192,7 @@ func (p *DefaultProvider) Create(
 
 	creationDate, err := extractCreationDate(ctx, vm)
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract creation date: %w", err)
-	}
-
-	err = task.Wait(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("task failed: %w", err)
+		return nil, err
 	}
 
 	powerOnTask, err := vm.PowerOn(ctx)
