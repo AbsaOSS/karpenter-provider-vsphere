@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.7](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.6...v0.2.7) (2025-10-15)
+
+
+### Bug Fixes
+
+* karpenter panic when VM info is not yet populated ([91de0df](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/91de0df45620c6962dd33123307f1344541a9c76))
+
 ## [0.2.6](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.5...v0.2.6) (2025-10-14)
 
 
