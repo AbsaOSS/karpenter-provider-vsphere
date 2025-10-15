@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.8](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.7...v0.2.8) (2025-10-15)
+
+
+### Bug Fixes
+
+* Race condition in a create ([#42](https://github.com/AbsaOSS/karpenter-provider-vsphere/issues/42)) ([d21ab40](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/d21ab408a9c135f6fd9af4f0ffd6f58874211158))
+
 ## [0.2.7](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.6...v0.2.7) (2025-10-15)
 
 
