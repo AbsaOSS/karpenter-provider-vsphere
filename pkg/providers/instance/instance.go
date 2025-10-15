@@ -95,10 +95,10 @@ func (p *DefaultProvider) GenerateTarget(ctx context.Context, class *v1alpha1.Vs
 	poolRef := pool.Reference()
 	relocationSpec.Pool = &poolRef
 	datastore, err := p.Finder.ResolveDatastore(ctx, class.Spec.DatastoreSelector)
-	dsRef := datastore.Reference()
 	if err != nil {
 		return nil, err
 	}
+	dsRef := datastore.Reference()
 	relocationSpec.Datastore = &dsRef
 
 	return &relocationSpec, nil
@@ -208,7 +208,9 @@ func (p *DefaultProvider) Create(
 }
 
 func extractCreationDate(ctx context.Context, vm *object.VirtualMachine) (*time.Time, error) {
-	var vmMo models.VirtualMachine
+	vmMo := models.VirtualMachine{
+		Config: &types.VirtualMachineConfigInfo{},
+	}
 	err := vm.Properties(ctx, vm.Reference(), []string{"config.createDate"}, &vmMo)
 	if err != nil {
 		return nil, err
@@ -223,9 +225,11 @@ func GenerateVMName(cluster, claim string) string {
 }
 
 func getImageFromAnnotation(vm *object.VirtualMachine) string {
-	var annotation models.VirtualMachine
+	annotation := models.VirtualMachine{
+		Config: &types.VirtualMachineConfigInfo{},
+	}
 	err := vm.Properties(context.Background(), vm.Reference(), []string{"config.annotation"}, &annotation)
-	if err != nil && &annotation != nil {
+	if err != nil && annotation.Config.Annotation == "" {
 		annotation.Config.Annotation = "image_not_found"
 		log.Log.Info(err.Error())
 	}
@@ -243,15 +247,20 @@ func (p *DefaultProvider) List(ctx context.Context) ([]*Instance, error) {
 		return instances, nil
 	}
 	for _, vm := range vms {
+		ps, err := vm.PowerState(ctx)
+		if err != nil {
+			log.FromContext(ctx).Error(err, fmt.Sprintf("failed to get power state for VM %s", vm.Name()))
+		}
+		// skip poweredOff machines
+		if ps == "poweredOff" {
+			continue
+		}
 		image := getImageFromAnnotation(vm)
 		tags, err := p.Finder.TagsFromVM(ctx, vm)
 		if err != nil {
 			log.FromContext(ctx).Error(err, fmt.Sprintf("failed to get tags for VM %s", vm.Name()))
 		}
-		ps, err := vm.PowerState(ctx)
-		if err != nil {
-			log.FromContext(ctx).Error(err, fmt.Sprintf("failed to get power state for VM %s", vm.Name()))
-		}
+
 		creationDate, err := extractCreationDate(ctx, vm)
 		if err != nil {
 			log.FromContext(ctx).Error(err, fmt.Sprintf("failed to extract creation date for VM %s", vm.Name()))
