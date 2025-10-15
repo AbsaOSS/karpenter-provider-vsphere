@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.9](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.8...v0.2.9) (2025-10-15)
+
+
+### Bug Fixes
+
+* RKE2 config node-taint typo ([b7bfcfd](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/b7bfcfdda17c581f6725c3b0411d8c0901e3a415))
+
 ## [0.2.8](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.7...v0.2.8) (2025-10-15)
 
 
