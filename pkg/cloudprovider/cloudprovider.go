@@ -114,6 +114,7 @@ func (c *CloudProvider) instanceToNodeClaim(i *instance.Instance, instanceType *
 		nodeClaim.Status.Allocatable = lo.PickBy(instanceType.Allocatable(), resourceFilter)
 	}
 	labels[corev1.LabelInstanceTypeStable] = instanceType.Name
+	labels[karpv1.CapacityTypeLabelKey] = "OnDemand"
 
 	//TODO: Figure out TopologyZone label
 	labels[corev1.LabelTopologyZone] = i.Tags[corev1.LabelTopologyZone]
