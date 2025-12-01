@@ -125,11 +125,7 @@ func (p *DefaultProvider) Create(
 	maps.Copy(instanceTags, class.Spec.Tags)
 	//Default carpenter taint
 	taints := []corev1.Taint{
-		{
-			Key:    "karpenter.sh/unregistered",
-			Value:  "true",
-			Effect: corev1.TaintEffectNoSchedule,
-		},
+		karpv1.UnregisteredNoExecuteTaint,
 	}
 	taints = append(taints, claim.Spec.Taints...)
 	controllerOpts := options.FromContext(ctx)
