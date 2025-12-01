@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.10](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.9...v0.2.10) (2025-12-01)
+
+
+### Bug Fixes
+
+* README updates and code fixes ([4293c39](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/4293c394b56a2a14fb3ac0728d69937bfcd865f3))
+
 ## [0.2.9](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.8...v0.2.9) (2025-10-15)
 
 
