@@ -9,11 +9,20 @@ Karpenter provider for VMWare Vsphere
 | Flag             | Environment variable | Required |
 |------------------|----------------------|----------|
 | cluster-name     | CLUSTER_NAME         | true     |
+| cluster-endpoint | CLUSTER_ENDPOINT     | true     |
 | vsphere-endpoint | GOVC_URL             | true     |
 | vsphere-username | GOVC_USERNAME        | true     |
 | vsphere-password | GOVC_PASSWORD        | true     |
 | vsphere-path     | VSPHERE_FOLDER       | true     |
 | vsphere-insecure | GOVC_INSECURE        | false    |
+| join-token       | JOIN_TOKEN           | true     |
+| kube-distro      | KUBE_DISTRO          | true     |
+
+
+# About supported distros
+* `rke2` -  as first class citizen
+* `kubeadm` - to be implemented
+* `rke2airgapped` - expects rke2 artifacts to be baked-in into node image
 
 # VsphereNodeClass API
 Besides `VSPHERE_FOLDER` (vsphere folder to place virtulal machines on), all placement settings are defined in `VsphereNodeClass` resource. This is done via selectors:
