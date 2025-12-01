@@ -275,8 +275,8 @@ func (c *CloudProvider) IsDrifted(ctx context.Context, claim *karpv1.NodeClaim) 
 }
 
 func toCPITypeFormat(cpu, mem, os string) string {
-	o := strings.TrimSuffix(mem, "Gi")
-	return fmt.Sprintf("%s_%s_%s", cpu, o, os)
+	mem = strings.TrimSuffix(mem, "Gi")
+	return fmt.Sprintf("vsphere-vm.cpu-%s.mem-%sgb.os-%s", cpu, mem, os)
 }
 func instanceTypesFromNodeClass(nodeClass *v1alpha1.VsphereNodeClass) []*cloudprovider.InstanceType {
 	instanceTypes := []*cloudprovider.InstanceType{}
