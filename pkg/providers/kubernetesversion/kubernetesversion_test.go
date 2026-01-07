@@ -3,14 +3,15 @@ package kubernetesversion
 import (
 	"context"
 
+	"testing"
+	"time"
+
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/mocks"
 	"github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	"k8s.io/apimachinery/pkg/version"
-
-	"testing"
-	"time"
+	_ "k8s.io/client-go/kubernetes"
 )
 
 func TestKubeServerVersion(t *testing.T) {
@@ -79,6 +80,12 @@ func TestKubeServerVersions(t *testing.T) {
 			version:         &version.Info{GitVersion: "!!@@##???"},
 			expectedVersion: "!!@@##???",
 		},
+		{
+			name:            "version with multiple prefixes",
+			expectedError:   false,
+			version:         &version.Info{GitVersion: "vvv1.23.4+rke2r1"},
+			expectedVersion: "vv1.23.4+rke2r1",
+		},
 	}
 
 	for _, test := range tests {
@@ -105,8 +112,8 @@ func TestKubeServerVersions(t *testing.T) {
 				return
 			}
 
-			assert.NoError(t, err)
-			assert.Equal(t, test.expectedVersion, str)
+			assert.NoError(t, err)                     // ensure no error occurred
+			assert.Equal(t, test.expectedVersion, str) // verify the version matches expected
 
 		})
 	}
