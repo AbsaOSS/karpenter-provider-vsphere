@@ -54,7 +54,6 @@ spec:
                     description: |-
                       Tags is a map of key/value tags used to select subnets
                       Specifying '*' for a value selects all values for a given tag key.
-                    maxProperties: 1
                     type: object
                     x-kubernetes-validations:
                     - message: empty tag keys or values aren't supported
@@ -71,7 +70,6 @@ spec:
                     description: |-
                       Tags is a map of key/value tags used to select subnets
                       Specifying '*' for a value selects all values for a given tag key.
-                    maxProperties: 1
                     type: object
                     x-kubernetes-validations:
                     - message: empty tag keys or values aren't supported
@@ -88,7 +86,6 @@ spec:
                     description: |-
                       Tags is a map of key/value tags used to select subnets
                       Specifying '*' for a value selects all values for a given tag key.
-                    maxProperties: 1
                     type: object
                     x-kubernetes-validations:
                     - message: empty tag keys or values aren't supported
@@ -108,7 +105,6 @@ spec:
                     description: |-
                       Tags is a map of key/value tags used to select subnets
                       Specifying '*' for a value selects all values for a given tag key.
-                    maxProperties: 1
                     type: object
                     x-kubernetes-validations:
                     - message: empty tag keys or values aren't supported
@@ -133,6 +129,8 @@ spec:
                       type: string
                   type: object
                 type: array
+              k8SDistro:
+                type: string
               networkSelector:
                 properties:
                   name:
@@ -144,7 +142,6 @@ spec:
                     description: |-
                       Tags is a map of key/value tags used to select subnets
                       Specifying '*' for a value selects all values for a given tag key.
-                    maxProperties: 1
                     type: object
                     x-kubernetes-validations:
                     - message: empty tag keys or values aren't supported
@@ -156,25 +153,10 @@ spec:
                 type: object
               userData:
                 properties:
-                  templateBase64:
+                  additionalUserdata:
                     type: string
                   type:
                     type: string
-                  values:
-                    description: |-
-                      SecretReference represents a Secret Reference. It has enough information to retrieve secret
-                      in any namespace
-                    properties:
-                      name:
-                        description: name is unique within a namespace to reference
-                          a secret resource.
-                        type: string
-                      namespace:
-                        description: namespace defines the space within which the
-                          secret name must be unique.
-                        type: string
-                    type: object
-                    x-kubernetes-map-type: atomic
                 type: object
             type: object
           status:

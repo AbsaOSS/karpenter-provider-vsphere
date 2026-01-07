@@ -163,3 +163,6 @@ settings:
   clusterName: ""
   # -- The VM memory overhead as a percent that will be subtracted from the total memory for all instance types. The value of `0.075` equals to 7.5%.
   vmMemoryOverheadPercent: 0.075
+
+#  -- extraObjects could be utilized to add dynamic manifests via values
+extraObjects: []

@@ -1,5 +1,82 @@
 # Changelog
 
+## [0.2.10](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.9...v0.2.10) (2025-12-01)
+
+
+### Bug Fixes
+
+* README updates and code fixes ([4293c39](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/4293c394b56a2a14fb3ac0728d69937bfcd865f3))
+
+## [0.2.9](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.8...v0.2.9) (2025-10-15)
+
+
+### Bug Fixes
+
+* RKE2 config node-taint typo ([b7bfcfd](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/b7bfcfdda17c581f6725c3b0411d8c0901e3a415))
+
+## [0.2.8](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.7...v0.2.8) (2025-10-15)
+
+
+### Bug Fixes
+
+* Race condition in a create ([#42](https://github.com/AbsaOSS/karpenter-provider-vsphere/issues/42)) ([d21ab40](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/d21ab408a9c135f6fd9af4f0ffd6f58874211158))
+
+## [0.2.7](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.6...v0.2.7) (2025-10-15)
+
+
+### Bug Fixes
+
+* karpenter panic when VM info is not yet populated ([91de0df](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/91de0df45620c6962dd33123307f1344541a9c76))
+
+## [0.2.6](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.5...v0.2.6) (2025-10-14)
+
+
+### Bug Fixes
+
+* allow multiple Tags in ByTag selector ([e7ca6bc](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/e7ca6bc5eea92d064fb03c9e7902e51926c23197))
+
+## [0.2.5](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.4...v0.2.5) (2025-10-14)
+
+
+### Bug Fixes
+
+* regenerate crd after userdata handling changes ([c58b0b6](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/c58b0b66fc39d402f518abf80ef9e64c25ee75c7))
+
+## [0.2.4](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.3...v0.2.4) (2025-10-14)
+
+
+### Bug Fixes
+
+* fix garbage collection panics ([7a9657b](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/7a9657bd4b3cc30e9f7710d82dfb1e4b70ff1658))
+
+## [0.2.3](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.2...v0.2.3) (2025-10-03)
+
+
+### Bug Fixes
+
+* Add extraObjects to helm chart ([2125e1c](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/2125e1cdde0569a8158d3f872dd34b5fae8e6086))
+
+## [0.2.2](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.1...v0.2.2) (2025-10-03)
+
+
+### Bug Fixes
+
+* Set TAG env on correct action ([ce5cb26](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/ce5cb26eb896da9da197cebbce5e7e308a62f84a))
+
+## [0.2.1](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.0...v0.2.1) (2025-10-03)
+
+
+### Bug Fixes
+
+* Specify tag during ko build ([bc821d9](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/bc821d917e6aa618c76b7475099901601af8072a))
+
+## [0.2.0](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.1.0...v0.2.0) (2025-10-03)
+
+
+### Features
+
+* Refactor node bootstrap ([c087f5b](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/c087f5b3c8df6ea6bdafd834077dc9e2f87f2f48))
+
 ## [0.1.0](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.0.5...v0.1.0) (2025-06-17)
 
 

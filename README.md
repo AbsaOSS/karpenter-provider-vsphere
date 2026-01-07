@@ -8,15 +8,24 @@ Karpenter provider for VMWare Vsphere
 
 | Flag             | Environment variable | Required |
 |------------------|----------------------|----------|
-|cluster-name      | CLUSTER_NAME         | true     |
+| cluster-name     | CLUSTER_NAME         | true     |
+| cluster-endpoint | CLUSTER_ENDPOINT     | true     |
 | vsphere-endpoint | GOVC_URL             | true     |
 | vsphere-username | GOVC_USERNAME        | true     |
 | vsphere-password | GOVC_PASSWORD        | true     |
-| vsphere-path     | VSPHERE_PATH         | true     |
-| vsphere-insecure | VSPHERE_INSECURE     | false    |
+| vsphere-path     | VSPHERE_FOLDER       | true     |
+| vsphere-insecure | GOVC_INSECURE        | false    |
+| join-token       | JOIN_TOKEN           | true     |
+| kube-distro      | KUBE_DISTRO          | true     |
+
+
+# About supported distros
+* `rke2` -  as first class citizen
+* `kubeadm` - to be implemented
+* `rke2airgapped` - expects rke2 artifacts to be baked-in into node image
 
 # VsphereNodeClass API
-Besides `VSPHERE_PATH` (vsphere folder to place virtulal machines on), all placement settings are defined in `VsphereNodeClass` resource. This is done via selectors:
+Besides `VSPHERE_FOLDER` (vsphere folder to place virtulal machines on), all placement settings are defined in `VsphereNodeClass` resource. This is done via selectors:
 * `.spec.computeSelector` - defines how to search for desired resourcePool
 * `.spec.datastoreSelector` - defines how to search for desired datastore
 * `.spec.networkSelector` - difines how to discover network
@@ -40,8 +49,5 @@ All selectors have `tag` and `name` properties, those are mutually exclusive. Ka
 
 
 * `.spec.userdata`:
-  - `type` - Either `ignition` or `cloud-init`
-  - `templateBase64` - A base64 encoded template
-  - `values` - a v1.Secret reference (name/namespace) to key/values used in a template
-
-[!NOTE] user-data should hanndle `karpenter.sh/unregistered` taint to the node
+  - `type` - Either `ignition` or `cloud-config`
+  - `additionalUserdata` - extra init data to be merged with distribution specific
