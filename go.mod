@@ -9,13 +9,17 @@ require (
 	github.com/go-logr/zapr v1.3.0
 	github.com/pkg/errors v0.9.1
 	github.com/samber/lo v1.50.0
+	github.com/stretchr/testify v1.10.0
 	github.com/vmware/govmomi v0.50.0
+	go.uber.org/mock v0.6.0
 	k8s.io/api v0.33.1
 	k8s.io/apimachinery v0.33.1
 	k8s.io/client-go v0.33.1
 	sigs.k8s.io/controller-runtime v0.21.0
 	sigs.k8s.io/karpenter v1.4.0
 )
+
+require github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -56,7 +60,7 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/net v0.38.0 // indirect
 	golang.org/x/oauth2 v0.27.0 // indirect
-	golang.org/x/sync v0.13.0 // indirect
+	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/sys v0.32.0 // indirect
 	golang.org/x/term v0.30.0 // indirect
 	golang.org/x/text v0.24.0 // indirect
