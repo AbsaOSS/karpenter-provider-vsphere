@@ -74,7 +74,7 @@ func GetRootResourcePool(ctx context.Context, cluster *object.ClusterComputeReso
 }
 
 func (t *Provider) NetworkByTag(ctx context.Context, tag map[string]string) (*object.NetworkReference, error) {
-	ref, err := t.getObjectByTag(ctx, tag, "Network")
+	ref, err := t.getObjectByTag(ctx, tag, "DistributedVirtualPortgroup")
 	if err != nil {
 		return nil, err
 	}
