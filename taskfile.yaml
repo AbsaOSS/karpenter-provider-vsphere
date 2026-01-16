@@ -1,0 +1,15 @@
+---
+version: '3'
+interval: '1500ms'
+# env:
+#   LOCALBIN: /bin
+#   TFENV_TERRAFORM_VERSION: 1.5.7
+
+# dotenv: ['.env']
+
+tasks:
+  mocks:
+    cmds:
+      - go install go.uber.org/mock/mockgen@v0.6.0
+      - $(go env GOPATH)/bin/mockgen -package=mocks -destination=pkg/mocks/interface_mock.go k8s.io/client-go/kubernetes Interface
+      - $(go env GOPATH)/bin/mockgen -package=mocks -destination=pkg/mocks/discovery_mock.go k8s.io/client-go/discovery DiscoveryInterface
