@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.11](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.10...v0.2.11) (2026-01-16)
+
+
+### Bug Fixes
+
+* Network by Tag lookup ([cd45ab3](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/cd45ab312b64029cd0ae9585204d3db1b9a5d6a0))
+
 ## [0.2.10](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.9...v0.2.10) (2025-12-01)
 
 
