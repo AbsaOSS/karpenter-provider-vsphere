@@ -73,17 +73,25 @@ func GetRootResourcePool(ctx context.Context, cluster *object.ClusterComputeReso
 	return cluster.ResourcePool(ctx)
 }
 
-func (t *Provider) NetworkByTag(ctx context.Context, tag map[string]string) (*object.NetworkReference, error) {
-	ref, err := t.getObjectByTag(ctx, tag, "DistributedVirtualPortgroup")
-	if err != nil {
-		return nil, err
+func (t *Provider) NetworkByTag(ctx context.Context, tags map[string]string) (*object.NetworkReference, error) {
+	kinds := []string{"Network", "DistributedVirtualSwitch", "DistributedVirtualPortgroup", "OpaqueNetwork"}
+	var networkRefs []object.NetworkReference
+
+	for _, k := range kinds {
+		ref, err := t.getObjectByTag(ctx, tags, k)
+		if err != nil {
+			continue
+		}
+		networkRefs = append(networkRefs, ref.(object.NetworkReference))
 	}
-	if ref == nil {
-		return nil, fmt.Errorf("failed to get Network by Tag return is %v", ref)
+
+	if len(networkRefs) == 0 {
+		return nil, fmt.Errorf("failed to network by Tag")
+	} else if len(networkRefs) > 1 {
+		return nil, fmt.Errorf("multiple networks found")
 	}
-	netObj := ref.(*object.Network)
-	var netRef object.NetworkReference = netObj
-	return &netRef, nil
+
+	return &networkRefs[0], nil
 }
 
 func (t *Provider) DatastoreByTag(ctx context.Context, tag map[string]string) (*object.Datastore, error) {
