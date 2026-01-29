@@ -47,15 +47,11 @@ func TestGetDiskConfigSpecResize(t *testing.T) {
 		},
 	}
 
-	// Get Disk Config Specs
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			// arrange
-			// Create mock controller
 			controller := gomock.NewController(t)
 			defer controller.Finish()
 
-			// act
 			disk := &types.VirtualDisk{
 				VirtualDevice: types.VirtualDevice{
 					Key: 2000,
@@ -65,7 +61,6 @@ func TestGetDiskConfigSpecResize(t *testing.T) {
 
 			result, err := getDiskConfigSpec(disk, test.requestedDiskSize)
 
-			// assert
 			if test.expectError {
 				assert.Error(t, err)
 				if test.errorContains != "" {
