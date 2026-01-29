@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.12](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.11...v0.2.12) (2026-01-16)
+
+
+### Bug Fixes
+
+* Cover more network type in byTag lookup ([3c609e9](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/3c609e90ab81b6142823b2aa7c260a04904d1b00))
+
+## [0.2.11](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.10...v0.2.11) (2026-01-16)
+
+
+### Bug Fixes
+
+* Network by Tag lookup ([cd45ab3](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/cd45ab312b64029cd0ae9585204d3db1b9a5d6a0))
+
 ## [0.2.10](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.9...v0.2.10) (2025-12-01)
 
 
