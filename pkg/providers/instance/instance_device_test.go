@@ -5,7 +5,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/vmware/govmomi/vim25/types"
-	"go.uber.org/mock/gomock"
 )
 
 func TestGetDiskConfigSpecResize(t *testing.T) {
@@ -49,8 +48,6 @@ func TestGetDiskConfigSpecResize(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			controller := gomock.NewController(t)
-			defer controller.Finish()
 
 			disk := &types.VirtualDisk{
 				VirtualDevice: types.VirtualDevice{
