@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.13](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.12...v0.2.13) (2026-03-04)
+
+
+### Miscellaneous Chores
+
+* bump go to 1.24.13 ([cb2ce2d](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/cb2ce2d77dfd02394b03a72655abf8c4dbb938a0))
+
 ## [0.2.12](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.11...v0.2.12) (2026-01-16)
 
 
