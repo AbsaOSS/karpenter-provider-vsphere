@@ -1,6 +1,6 @@
 module github.com/absaoss/karpenter-provider-vsphere
 
-go 1.24.5
+go 1.24.13
 
 require (
 	github.com/awslabs/operatorpkg v0.0.0-20250624064700-e9977193119b
