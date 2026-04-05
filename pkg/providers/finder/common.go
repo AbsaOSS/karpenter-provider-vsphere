@@ -10,30 +10,15 @@ import (
 	"github.com/vmware/govmomi/vim25/mo"
 )
 
-func (p *Provider) ResolveResourcePool(ctx context.Context, selector v1alpha1.ResPoolSelctorTerm, dc *object.Datacenter) (*object.ResourcePool, error) {
+func (p *Provider) ResolveResourcePool(ctx context.Context, selector v1alpha1.ResPoolSelctorTerm) (*object.ResourcePool, error) {
 	if len(selector.Tags) > 0 {
 		return p.PoolByTag(ctx, selector.Tags)
 	}
 
 	if selector.Name != "" {
-		return p.PoolByName(ctx, selector.Name, dc)
+		return p.PoolByName(ctx, selector.Name)
 	}
 	return nil, fmt.Errorf("failed to resolve ResourcePool")
-}
-
-func (p *Provider) GetDC(ctx context.Context) (*object.Datacenter, error) {
-	return p.FindClient.DatacenterOrDefault(ctx, "*")
-
-}
-func (p *Provider) ResolveDC(ctx context.Context, selector v1alpha1.DCSelectorTerm) (*object.Datacenter, error) {
-	if len(selector.Tags) > 0 {
-		return p.DCByTag(ctx, selector.Tags)
-	}
-
-	if selector.Name != "" {
-		return p.DCByName(ctx, selector.Name)
-	}
-	return nil, fmt.Errorf("failed to resolve Datacenter")
 }
 
 func (p *Provider) ResolveDatastore(ctx context.Context, selector v1alpha1.DatastoreSelectorTerm) (*object.Datastore, error) {
@@ -82,26 +67,15 @@ func (p *Provider) isTemplate(ctx context.Context, obj *object.VirtualMachine) b
 }
 
 func (p *Provider) GetFolder(ctx context.Context, f string) (*object.Folder, error) {
-	dc, err := p.GetDC(ctx)
-	if err != nil {
-		return nil, err
-	}
-	p.FindClient.SetDatacenter(dc)
 	return p.FindClient.Folder(ctx, fmt.Sprintf("vm/%s", f))
 }
 
 func (p *Provider) ListVMs(ctx context.Context) ([]*object.VirtualMachine, error) {
-	dc, err := p.GetDC(ctx)
-	if err != nil {
-		return nil, err
-	}
-	p.FindClient.SetDatacenter(dc)
 	folder, err := p.GetFolder(ctx, p.Folder)
 	if err != nil {
 		return nil, err
 	}
 	vmPattern := fmt.Sprintf("%s/%s*", folder.InventoryPath, p.ClusterName)
-	// GetDC and list in given DC or all DCs
 	vms, err := p.FindClient.VirtualMachineList(ctx, vmPattern)
 	if err != nil {
 		if _, ok := err.(*find.NotFoundError); !ok {
