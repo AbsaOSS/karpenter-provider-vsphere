@@ -6,6 +6,7 @@ import (
 
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis"
 	"github.com/pkg/errors"
+	"github.com/vmware/govmomi/find"
 	"k8s.io/client-go/kubernetes"
 
 	x "net/url"
@@ -57,8 +58,13 @@ func NewOperator(ctx context.Context, operator *operator.Operator) (context.Cont
 
 	folder := options.FromContext(ctx).VsphereFolder
 	clusterName := options.FromContext(ctx).ClusterName
+	dcName := options.FromContext(ctx).VsphereDC
+	findClient := find.NewFinder(vsphereClient, true)
+	lo.Must0(err, "creating vsphere finder")
+	dc, err := findClient.Datacenter(ctx, dcName)
+	lo.Must0(err, "finding datacenter")
 
-	finderProvider := finder.NewDefaultProvider(tagClient, vsphereClient, folder, clusterName)
+	finderProvider := finder.NewDefaultProvider(tagClient, vsphereClient, findClient, dc, folder, clusterName)
 	instanceProvider := instance.NewDefaultProvider(
 		inClusterClient,
 		finderProvider,

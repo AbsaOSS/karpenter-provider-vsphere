@@ -48,14 +48,6 @@ func (t *Provider) getObjectByTag(ctx context.Context, taglist map[string]string
 	return object.NewReference(t.Client, obj.Reference()), nil
 }
 
-func (t *Provider) DCByTag(ctx context.Context, tag map[string]string) (*object.Datacenter, error) {
-	ref, err := t.getObjectByTag(ctx, tag, "Datacenter")
-	if ref == nil {
-		return nil, fmt.Errorf("failed to get DC by Tag return is %v", ref)
-	}
-	return ref.(*object.Datacenter), err
-}
-
 func (t *Provider) PoolByTag(ctx context.Context, tag map[string]string) (*object.ResourcePool, error) {
 	ref, err := t.getObjectByTag(ctx, tag, "ClusterComputeResource")
 	if err != nil {

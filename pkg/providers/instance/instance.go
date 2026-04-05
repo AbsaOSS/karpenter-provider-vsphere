@@ -3,12 +3,13 @@ package instance
 import (
 	"context"
 	"fmt"
-	"github.com/absaoss/karpenter-provider-vsphere/pkg/operator/options"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"maps"
 	"strings"
 	"time"
+
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/operator/options"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/vmware/govmomi/find"
 
@@ -51,7 +52,7 @@ func (p *DefaultProvider) Name() string {
 	return "vsphere"
 }
 
-func (p *DefaultProvider) GenerateVMSpec(ctx context.Context, class *v1alpha1.VsphereNodeClass, name string, instanceType *corecloudprovider.InstanceType) (*types.VirtualMachineCloneSpec, error) {
+func (p *DefaultProvider) GenerateVMSpec(ctx context.Context, class *v1alpha1.VsphereNodeClass, name string, image *object.VirtualMachine, instanceType *corecloudprovider.InstanceType) (*types.VirtualMachineCloneSpec, error) {
 	locationSpec, err := p.GenerateTarget(ctx, class)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate target for VM: %w", err)
@@ -62,10 +63,6 @@ func (p *DefaultProvider) GenerateVMSpec(ctx context.Context, class *v1alpha1.Vs
 		return nil, fmt.Errorf("failed to get device spec: %w", err)
 	}
 
-	image, err := p.Finder.ResolveImage(ctx, class.Spec.ImageSelector)
-	if err != nil {
-		return nil, err
-	}
 	t := time.Now()
 	return &types.VirtualMachineCloneSpec{
 		Template: false,
@@ -85,11 +82,7 @@ func (p *DefaultProvider) GenerateVMSpec(ctx context.Context, class *v1alpha1.Vs
 
 func (p *DefaultProvider) GenerateTarget(ctx context.Context, class *v1alpha1.VsphereNodeClass) (*types.VirtualMachineRelocateSpec, error) {
 	var relocationSpec types.VirtualMachineRelocateSpec
-	dc, err := p.Finder.ResolveDC(ctx, class.Spec.Datacenter)
-	if err != nil {
-		return nil, err
-	}
-	pool, err := p.Finder.ResolveResourcePool(ctx, class.Spec.PoolSelector, dc)
+	pool, err := p.Finder.ResolveResourcePool(ctx, class.Spec.PoolSelector)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +141,8 @@ func (p *DefaultProvider) Create(
 	if err != nil {
 		return nil, fmt.Errorf("failed to find VM template: %w", err)
 	}
-	cloneSpec, err := p.GenerateVMSpec(ctx, class, VMName, instanceType)
+
+	cloneSpec, err := p.GenerateVMSpec(ctx, class, VMName, vmTemplate, instanceType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate VM spec: %w", err)
 	}
