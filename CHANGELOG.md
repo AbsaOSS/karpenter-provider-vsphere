@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.13...v1.0.0) (2026-04-07)
+
+
+### ⚠ BREAKING CHANGES
+
+* Multi DC machine spread is almost never used use case, move DC configuration into controller options.
+
+### Code Refactoring
+
+* Move DC configuraion from nodeclass to controller ([f07675d](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/f07675de4844c0bebb22cad221846bd1fcf366c1))
+
 ## [0.2.13](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.12...v0.2.13) (2026-03-04)
 
 
