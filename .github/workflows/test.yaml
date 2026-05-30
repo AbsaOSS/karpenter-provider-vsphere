@@ -1,0 +1,35 @@
+---
+name: test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: go-test
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ./go.mod
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/go-build
+          key: go-build.cache-{runner_os}-{working_directory}-{interval_number}-{go.mod_hash}
+          restore-keys: |
+            go-build.cache-{runner_os}-{working_directory}-{interval_number}-
+      - name: Install Task
+        uses: go-task/setup-task@v1
+      - name: run test task
+        run: |
+          task -t taskfile.yaml test

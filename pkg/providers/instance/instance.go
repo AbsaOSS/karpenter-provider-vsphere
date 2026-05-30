@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/operator/options"
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/userdata"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -122,18 +123,20 @@ func (p *DefaultProvider) Create(
 	}
 	taints = append(taints, claim.Spec.Taints...)
 	controllerOpts := options.FromContext(ctx)
-	workerInitConfig := NewInitData(
+	workerInitConfig := userdata.NewInitData(
 		taints,
 		VMName,
 		controllerOpts.ClusterEndpoint,
 		controllerOpts.JoinToken,
-		controllerOpts.KubeDistro,
 		controllerOpts.KubeVersion,
-		class.Spec.UserData.Type,
 		class.Spec.UserData.AdditionalUserdata,
 	)
+	initType := &userdata.InitType{
+		Distro: v1alpha1.Distro(controllerOpts.KubeDistro),
+		Format: class.Spec.UserData.Type,
+	}
 
-	userData, err := p.GetInitData(workerInitConfig)
+	userData, err := p.GetInitData(workerInitConfig, initType)
 	if err != nil {
 		return nil, err
 	}
