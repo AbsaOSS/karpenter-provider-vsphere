@@ -51,3 +51,5 @@ All selectors have `tag` and `name` properties, those are mutually exclusive. Ka
 * `.spec.userdata`:
   - `type` - Either `ignition` or `cloud-config`
   - `additionalUserdata` - extra init data to be merged with distribution specific
+  - `cloud-config` supports `write_files` and `runcmd` statements
+  - `ignition` data must be supplied it `butane` format

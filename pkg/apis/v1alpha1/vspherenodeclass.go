@@ -104,9 +104,9 @@ type Distro string
 const (
 	UserDataTypeCloudConfig UserDataType = "cloud-config"
 	UserDataTypeIgnition    UserDataType = "ignition"
-	RKE2                    string       = "rke2"
-	RKE2AirGapped           string       = "rke2airgapped"
-	KUBEADM                 string       = "kubeadm"
+	RKE2                    Distro       = "rke2"
+	RKE2AirGapped           Distro       = "rke2airgapped"
+	KUBEADM                 Distro       = "kubeadm"
 )
 
 type UserData struct {
