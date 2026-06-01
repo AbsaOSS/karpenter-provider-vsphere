@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v1.0.0...v2.0.0) (2026-06-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* userdata hadnling distros and ignition
+
+### Code Refactoring
+
+* userdata hadnling distros and ignition ([69f85d4](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/69f85d4aa2d2670d678ad5fa5ef09cc3ef769151))
+
 ## [1.0.0](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v0.2.13...v1.0.0) (2026-04-07)
 
 
