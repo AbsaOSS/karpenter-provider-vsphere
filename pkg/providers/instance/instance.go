@@ -54,6 +54,7 @@ func (p *DefaultProvider) Name() string {
 }
 
 func (p *DefaultProvider) GenerateVMSpec(ctx context.Context, class *v1alpha1.VsphereNodeClass, name string, image *object.VirtualMachine, instanceType *corecloudprovider.InstanceType) (*types.VirtualMachineCloneSpec, error) {
+	diskEnableUUID := true
 	locationSpec, err := p.GenerateTarget(ctx, class)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate target for VM: %w", err)
@@ -69,6 +70,10 @@ func (p *DefaultProvider) GenerateVMSpec(ctx context.Context, class *v1alpha1.Vs
 		Template: false,
 		Location: *locationSpec,
 		Config: &types.VirtualMachineConfigSpec{
+			Flags: &types.VirtualMachineFlagInfo{
+				// disk.EnableUUID = TRUE
+				DiskUuidEnabled: &diskEnableUUID,
+			},
 			Name:         name,
 			Annotation:   fmt.Sprintf("cloned_from:%s", image.InventoryPath),
 			NumCPUs:      int32(instanceType.Capacity.Cpu().Value()),
