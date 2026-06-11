@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.1](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v2.0.0...v2.0.1) (2026-06-11)
+
+
+### Bug Fixes
+
+* set disk.EnableUUID=TRUE ([ce8da36](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/ce8da361cfe231d29b4333cce4d6b7c7e84990f9))
+
 ## [2.0.0](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v1.0.0...v2.0.0) (2026-06-01)
 
 
