@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.0.0](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v2.0.1...v3.0.0) (2026-07-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* Add vsphere and kubeapi as chart values
+
+### Code Refactoring
+
+* Add vsphere and kubeapi as chart values ([b52f798](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/b52f798817075970fa4f47c85a5c8f3f86dc7f15))
+
 ## [2.0.1](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v2.0.0...v2.0.1) (2026-06-11)
 
 
