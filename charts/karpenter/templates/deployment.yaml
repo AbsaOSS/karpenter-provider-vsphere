@@ -131,6 +131,20 @@ spec:
           {{- end }}
             - name: CLUSTER_NAME
               value: "{{ required "Chart cannot be installed without a valid settings.clusterName!" (tpl .Values.settings.clusterName .) }}"
+            - name: KUBE_DISTRO
+              value: "{{ required "Chart cannot be installed without a valid settings.kubeDistro!" (tpl .Values.settings.kubeDistro .) }}"
+            - name: CLUSTER_ENDPOINT
+              value: "{{ required "Chart cannot be installed without a valid settings.kubeApiAddress!" (tpl .Values.settings.kubeApiAddress .) }}"
+          {{- with .Values.settings.vsphereInsecure }}
+            - name: GOVC_INSECURE
+              value: "{{ . }}"
+          {{- end }}
+            - name: GOVC_URL
+              value: "{{ required "Chart cannot be installed without a valid settings.vsphereEndpoint!" (tpl .Values.settings.vsphereEndpoint .) }}"
+            - name: VSPHERE_FOLDER
+              value: "{{ required "Chart cannot be installed without a valid settings.vsphereFolder!" (tpl .Values.settings.vsphereFolder .) }}"
+            - name: VSPHERE_DC
+              value: "{{ required "Chart cannot be installed without a valid settings.vsphereDC!" (tpl .Values.settings.vsphereDC .) }}"
           {{- with .Values.controller.env }}
             {{- toYaml . | nindent 12 }}
           {{- end }}

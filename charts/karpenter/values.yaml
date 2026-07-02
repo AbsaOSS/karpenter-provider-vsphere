@@ -161,6 +161,18 @@ settings:
   preferencePolicy: Respect
   # -- Cluster name.
   clusterName: ""
+  # -- VSphere API endpoint
+  vsphereEndpoint: ""
+  # -- kubernetes distribution
+  kubeDistro: ""
+  # -- VSphere Insecure
+  vsphereInsecure: "false"
+  # -- VSphere Datacenter
+  vsphereDC: ""
+  # -- VSphere Folder
+  vsphereFolder: ""
+  # -- Kuberenteres API endpoint
+  kubeApiAddress: ""
   # -- The VM memory overhead as a percent that will be subtracted from the total memory for all instance types. The value of `0.075` equals to 7.5%.
   vmMemoryOverheadPercent: 0.075
 
