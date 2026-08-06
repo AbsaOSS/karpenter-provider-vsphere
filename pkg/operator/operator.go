@@ -5,25 +5,17 @@ import (
 	"time"
 
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis"
-	"github.com/pkg/errors"
 	"github.com/vmware/govmomi/find"
 	"k8s.io/client-go/kubernetes"
-
-	x "net/url"
 
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/operator/options"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/finder"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/instance"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/kubernetesversion"
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/vsphereclient"
 
 	"github.com/patrickmn/go-cache"
 	"github.com/samber/lo"
-	"github.com/vmware/govmomi"
-	"github.com/vmware/govmomi/session"
-	"github.com/vmware/govmomi/vapi/rest"
-	"github.com/vmware/govmomi/vapi/tags"
-	"github.com/vmware/govmomi/vim25"
-	"github.com/vmware/govmomi/vim25/soap"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	karpv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 	"sigs.k8s.io/karpenter/pkg/operator"
@@ -42,9 +34,14 @@ type Operator struct {
 }
 
 func NewOperator(ctx context.Context, operator *operator.Operator) (context.Context, *Operator) {
-	vsphereClient, restClient, err := GetVsphereClient(ctx)
-	lo.Must0(err, "creating vsphere client")
-	tagClient := tags.NewManager(restClient)
+	vsClient, err := vsphereclient.NewSession(
+		ctx,
+		options.FromContext(ctx).VsphereEndpoint,
+		options.FromContext(ctx).VsphereUsername,
+		options.FromContext(ctx).VspherePassword,
+		options.FromContext(ctx).VsphereInsecure,
+	)
+	lo.Must0(err, "creating vsphere session")
 
 	//inClusterConfig := lo.Must(rest.InClusterConfig())
 	// for testing purposes load local kubeconfig if available
@@ -59,12 +56,11 @@ func NewOperator(ctx context.Context, operator *operator.Operator) (context.Cont
 	folder := options.FromContext(ctx).VsphereFolder
 	clusterName := options.FromContext(ctx).ClusterName
 	dcName := options.FromContext(ctx).VsphereDC
-	findClient := find.NewFinder(vsphereClient, true)
-	lo.Must0(err, "creating vsphere finder")
+	findClient := find.NewFinder(vsClient.Vim, true)
 	dc, err := findClient.Datacenter(ctx, dcName)
 	lo.Must0(err, "finding datacenter")
 
-	finderProvider := finder.NewDefaultProvider(tagClient, vsphereClient, findClient, dc, folder, clusterName)
+	finderProvider := finder.NewDefaultProvider(vsClient, findClient, dc, folder, clusterName)
 	instanceProvider := instance.NewDefaultProvider(
 		inClusterClient,
 		finderProvider,
@@ -77,33 +73,4 @@ func NewOperator(ctx context.Context, operator *operator.Operator) (context.Cont
 		InstanceProvider:             instanceProvider,
 		FinderProvider:               finderProvider,
 	}
-}
-
-func GetVsphereClient(ctx context.Context) (*vim25.Client, *rest.Client, error) {
-	url := &x.URL{
-		Scheme: "https",
-		Host:   options.FromContext(ctx).VsphereEndpoint,
-		Path:   "/sdk",
-	}
-	soapClient := soap.NewClient(url, options.FromContext(ctx).VsphereInsecure)
-	url.User = x.UserPassword(options.FromContext(ctx).VsphereUsername, options.FromContext(ctx).VspherePassword)
-	vimClient, err := vim25.NewClient(ctx, soapClient)
-	if err != nil {
-		return nil, nil, errors.Wrapf(err, "failed to create vsphere client")
-	}
-	vimClient.UserAgent = "karpenter-vsphere"
-
-	c := &govmomi.Client{
-		Client:         vimClient,
-		SessionManager: session.NewManager(vimClient),
-	}
-	restClient := rest.NewClient(c.Client)
-	if err := c.Login(ctx, url.User); err != nil {
-		return nil, nil, errors.Wrapf(err, "failed to create client: failed to login")
-	}
-	if err := restClient.Login(ctx, url.User); err != nil {
-		return nil, nil, errors.Wrapf(err, "failed to create client: failed to login to rest client")
-	}
-
-	return c.Client, restClient, nil
 }

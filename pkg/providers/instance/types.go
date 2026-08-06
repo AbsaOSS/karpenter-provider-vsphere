@@ -6,6 +6,7 @@ import (
 
 	v1alpha1 "github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
 	"github.com/vmware/govmomi/object"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 type Instance struct {
@@ -20,7 +21,14 @@ type Instance struct {
 }
 
 func NewInstanceFromVM(ctx context.Context, vm *object.VirtualMachine, created time.Time, tags map[string]string) *Instance {
-	instance := NewInstance(vm, vm.UUID(ctx), getImageFromAnnotation(vm), "", vm.Name(), created, tags)
+	config, err := getVMConfig(ctx, vm, []string{"config.uuid"})
+	uuid := ""
+	if err != nil {
+		log.Log.Info(err.Error())
+	} else {
+		uuid = config.Uuid
+	}
+	instance := NewInstance(vm, uuid, getImageFromAnnotation(ctx, vm), "", vm.Name(), created, tags)
 	return instance
 }
 func NewInstance(vm *object.VirtualMachine, id, image, state, name string, created time.Time, tags map[string]string) *Instance {

@@ -110,6 +110,10 @@ func (p *DefaultProvider) Create(
 	claim *karpv1.NodeClaim,
 	instanceTypes []*corecloudprovider.InstanceType) (*Instance, error) {
 
+	if err := p.Finder.Session.EnsureValid(ctx); err == nil {
+		return nil, fmt.Errorf("failed to ensure vsphere session is valid: %w", err)
+	}
+
 	instanceType := instanceTypes[0] // For simplicity, we take the first instance type.
 	VMName := GenerateVMName(p.ClusterName, claim.Name)
 	instanceTags := map[string]string{
@@ -188,12 +192,15 @@ func (p *DefaultProvider) Create(
 		return nil, err
 	}
 
-	creationDate, err := extractCreationDate(ctx, vm)
+	creationDate, uuid, err := extractCreationDate(ctx, vm)
 	if err != nil {
 		return nil, err
 	}
 
 	powerOnTask, err := vm.PowerOn(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to power on VM: %w", err)
+	}
 	err = powerOnTask.Wait(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("task failed: %w", err)
@@ -203,39 +210,49 @@ func (p *DefaultProvider) Create(
 	if err != nil {
 		return nil, fmt.Errorf("failed to get power state: %w", err)
 	}
-	return NewInstance(vm, vm.UUID(ctx), vmTemplate.InventoryPath, string(powerState), vm.Name(), *creationDate, instanceTags), err
+	return NewInstance(vm, uuid, vmTemplate.InventoryPath, string(powerState), vm.Name(), *creationDate, instanceTags), err
 }
 
-func extractCreationDate(ctx context.Context, vm *object.VirtualMachine) (*time.Time, error) {
+// getVMConfig
+func getVMConfig(ctx context.Context, vm *object.VirtualMachine, properties []string) (*types.VirtualMachineConfigInfo, error) {
 	vmMo := models.VirtualMachine{
 		Config: &types.VirtualMachineConfigInfo{},
 	}
-	err := vm.Properties(ctx, vm.Reference(), []string{"config.createDate"}, &vmMo)
+	err := vm.Properties(ctx, vm.Reference(), properties, &vmMo)
 	if err != nil {
 		return nil, err
 	}
+	return vmMo.Config, nil
+}
 
-	t := vmMo.Config.CreateDate.UTC()
-	return &t, nil
+func extractCreationDate(ctx context.Context, vm *object.VirtualMachine) (*time.Time, string, error) {
+	config, err := getVMConfig(ctx, vm, []string{"config.createDate", "config.uuid"})
+	if err != nil {
+		return nil, "", err
+	}
+
+	t := config.CreateDate.UTC()
+	return &t, config.Uuid, nil
 }
 
 func GenerateVMName(cluster, claim string) string {
 	return fmt.Sprintf("%s-karp-%s", cluster, claim)
 }
 
-func getImageFromAnnotation(vm *object.VirtualMachine) string {
-	annotation := models.VirtualMachine{
-		Config: &types.VirtualMachineConfigInfo{},
-	}
-	err := vm.Properties(context.Background(), vm.Reference(), []string{"config.annotation"}, &annotation)
-	if err != nil && annotation.Config.Annotation == "" {
-		annotation.Config.Annotation = "image_not_found"
+func getImageFromAnnotation(ctx context.Context, vm *object.VirtualMachine) string {
+	config, err := getVMConfig(ctx, vm, []string{"config.annotation"})
+	if err != nil {
 		log.Log.Info(err.Error())
+		return "image_not_found"
 	}
-	return strings.TrimPrefix(annotation.Config.Annotation, "cloned_from:")
+	return strings.TrimPrefix(config.Annotation, "cloned_from:")
 }
 
 func (p *DefaultProvider) List(ctx context.Context) ([]*Instance, error) {
+	if err := p.Finder.Session.EnsureValid(ctx); err != nil {
+		return nil, fmt.Errorf("failed to ensure vsphere session is valid: %w", err)
+	}
+
 	instances := []*Instance{}
 	vms, err := p.Finder.ListVMs(ctx)
 	//
@@ -254,13 +271,13 @@ func (p *DefaultProvider) List(ctx context.Context) ([]*Instance, error) {
 		if ps == "poweredOff" {
 			continue
 		}
-		image := getImageFromAnnotation(vm)
+		image := getImageFromAnnotation(ctx, vm)
 		tags, err := p.Finder.TagsFromVM(ctx, vm)
 		if err != nil {
 			log.FromContext(ctx).Error(err, fmt.Sprintf("failed to get tags for VM %s", vm.Name()))
 		}
 
-		creationDate, err := extractCreationDate(ctx, vm)
+		creationDate, uuid, err := extractCreationDate(ctx, vm)
 		if err != nil {
 			log.FromContext(ctx).Error(err, fmt.Sprintf("failed to extract creation date for VM %s", vm.Name()))
 		}
@@ -268,12 +285,16 @@ func (p *DefaultProvider) List(ctx context.Context) ([]*Instance, error) {
 		if tags["karpneter.sh/clustername"] != p.ClusterName {
 			continue
 		}
-		instances = append(instances, NewInstance(vm, vm.UUID(ctx), image, string(ps), vm.Name(), *creationDate, tags))
+		instances = append(instances, NewInstance(vm, uuid, image, string(ps), vm.Name(), *creationDate, tags))
 	}
 	return instances, nil
 }
 
 func (p *DefaultProvider) Get(ctx context.Context, vmID string) (*Instance, error) {
+	if err := p.Finder.Session.EnsureValid(ctx); err != nil {
+		return nil, fmt.Errorf("failed to ensure vsphere session is valid: %w", err)
+	}
+
 	vm, err := p.Finder.GetVMByID(ctx, vmID)
 	if err != nil {
 		return nil, err
@@ -288,6 +309,10 @@ func (p *DefaultProvider) Get(ctx context.Context, vmID string) (*Instance, erro
 }
 
 func (p *DefaultProvider) Delete(ctx context.Context, vmID string) error {
+	if err := p.Finder.Session.EnsureValid(ctx); err != nil {
+		return fmt.Errorf("failed to ensure vsphere session is valid: %w", err)
+	}
+
 	i, err := p.Get(ctx, vmID)
 	if err != nil {
 		return err

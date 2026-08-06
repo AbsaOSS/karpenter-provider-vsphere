@@ -3,14 +3,14 @@ package kubernetesversion
 import (
 	"context"
 
-	"testing"
-	"time"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/mocks"
 	"github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	"k8s.io/apimachinery/pkg/version"
 	_ "k8s.io/client-go/kubernetes"
+	"testing"
+	"time"
 )
 
 func TestKubeServerVersions(t *testing.T) {
