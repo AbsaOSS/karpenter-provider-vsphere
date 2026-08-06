@@ -14,7 +14,7 @@ import (
 func (t *Provider) getObjectByType(ctx context.Context, tags []*tags.Tag, objT string) (*types.ManagedObjectReference, error) {
 	objTagCount := map[types.ManagedObjectReference]int{}
 	for _, tag := range tags {
-		objs, err := t.TagManager.ListAttachedObjects(ctx, tag.ID)
+		objs, err := t.Session.Tags.ListAttachedObjects(ctx, tag.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -45,7 +45,7 @@ func (t *Provider) getObjectByTag(ctx context.Context, taglist map[string]string
 	if err != nil {
 		return nil, err
 	}
-	return object.NewReference(t.Client, obj.Reference()), nil
+	return object.NewReference(t.Session.Vim, obj.Reference()), nil
 }
 
 func (t *Provider) PoolByTag(ctx context.Context, tag map[string]string) (*object.ResourcePool, error) {
@@ -110,7 +110,7 @@ func (t *Provider) ImageByTag(ctx context.Context, tag map[string]string) (*obje
 }
 
 func (t *Provider) getTagID(ctx context.Context, k, v string) (*tags.Tag, error) {
-	return t.TagManager.GetTagForCategory(ctx, v, k)
+	return t.Session.Tags.GetTagForCategory(ctx, v, k)
 }
 
 func (t *Provider) TagInstance(ctx context.Context, obj types.ManagedObjectReference, tags map[string]string) error {
@@ -119,7 +119,7 @@ func (t *Provider) TagInstance(ctx context.Context, obj types.ManagedObjectRefer
 		return err
 	}
 	for _, tagID := range tagIDs {
-		err = t.TagManager.AttachTag(ctx, tagID, obj)
+		err = t.Session.Tags.AttachTag(ctx, tagID, obj)
 		if err != nil {
 			return err
 		}
@@ -148,10 +148,10 @@ func (t *Provider) CreateOrUpdateTags(ctx context.Context, instanceTags map[stri
 }
 
 func (t *Provider) CreateOrUpdateCategory(ctx context.Context, name string) (string, error) {
-	vsphereCategory, err := t.TagManager.GetCategory(ctx, name)
+	vsphereCategory, err := t.Session.Tags.GetCategory(ctx, name)
 	if err != nil {
 		fmt.Println("error getting vsphere category", err)
-		vsphereCategory, err := t.TagManager.CreateCategory(ctx, getCategoryObject(name))
+		vsphereCategory, err := t.Session.Tags.CreateCategory(ctx, getCategoryObject(name))
 		if err != nil {
 			return "", fmt.Errorf("failed to create vsphere category %s: %w", name, err)
 		}
@@ -161,10 +161,10 @@ func (t *Provider) CreateOrUpdateCategory(ctx context.Context, name string) (str
 }
 
 func (t *Provider) GetOrCreateTag(ctx context.Context, name, categoryID string) (string, error) {
-	tag, err := t.TagManager.GetTagForCategory(ctx, name, categoryID)
+	tag, err := t.Session.Tags.GetTagForCategory(ctx, name, categoryID)
 	if err != nil {
 		fmt.Println("error getting vsphere tag", err)
-		id, err := t.TagManager.CreateTag(ctx, &tags.Tag{
+		id, err := t.Session.Tags.CreateTag(ctx, &tags.Tag{
 			Description: "karpenter managed tag",
 			Name:        name,
 			CategoryID:  categoryID,
@@ -187,16 +187,16 @@ func getCategoryObject(name string) *tags.Category {
 }
 
 func (t *Provider) TagsFromVM(ctx context.Context, vm *object.VirtualMachine) (map[string]string, error) {
-	tagsAttached, err := t.TagManager.ListAttachedTags(ctx, vm.Reference())
+	tagsAttached, err := t.Session.Tags.ListAttachedTags(ctx, vm.Reference())
 	if err != nil {
 		log.FromContext(ctx).Error(err, fmt.Sprintf("failed to list tags for VM %s", vm.Name()))
 	}
-	return extractTagInfo(ctx, t.TagManager, tagsAttached)
+	return extractTagInfo(ctx, t.Session.Tags, tagsAttached)
 
 }
 
 func extractTagInfo(ctx context.Context, tagManager *tags.Manager, tagIDs []string) (map[string]string, error) {
-	tags := make(map[string]string)
+	result := make(map[string]string)
 	for _, tagID := range tagIDs {
 		tag, err := tagManager.GetTag(ctx, tagID)
 		if err != nil {
@@ -210,8 +210,8 @@ func extractTagInfo(ctx context.Context, tagManager *tags.Manager, tagIDs []stri
 			// Normalize Vsphere tag to fulfill CPI requirements
 			cat.Name = corev1.LabelTopologyZone
 		}
-		tags[cat.Name] = tag.Name
+		result[cat.Name] = tag.Name
 	}
-	return tags, nil
+	return result, nil
 
 }

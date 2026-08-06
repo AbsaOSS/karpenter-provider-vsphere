@@ -1,15 +1,13 @@
 package finder
 
 import (
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/vsphereclient"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
-	"github.com/vmware/govmomi/vapi/tags"
-	"github.com/vmware/govmomi/vim25"
 )
 
 type Provider struct {
-	TagManager  *tags.Manager
-	Client      *vim25.Client
+	Session     *vsphereclient.Session
 	IndexClient *object.SearchIndex
 	DC          *object.Datacenter
 	FindClient  *find.Finder
@@ -17,9 +15,9 @@ type Provider struct {
 	ClusterName string
 }
 
-func NewDefaultProvider(tMgr *tags.Manager, client *vim25.Client, findClient *find.Finder, dc *object.Datacenter, folder, cluster string) *Provider {
-	idx := object.NewSearchIndex(client)
+func NewDefaultProvider(session *vsphereclient.Session, findClient *find.Finder, dc *object.Datacenter, folder, cluster string) *Provider {
+	idx := object.NewSearchIndex(session.Vim)
 	// Set Datacenter globally for find operations
 	findClient.SetDatacenter(dc)
-	return &Provider{ClusterName: cluster, TagManager: tMgr, Client: client, IndexClient: idx, Folder: folder, FindClient: findClient, DC: dc}
+	return &Provider{ClusterName: cluster, Session: session, IndexClient: idx, Folder: folder, FindClient: findClient, DC: dc}
 }

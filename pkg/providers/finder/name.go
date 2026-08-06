@@ -46,6 +46,6 @@ func (p *Provider) GetVMByID(ctx context.Context, id string) (*object.VirtualMac
 	if vmRef == nil {
 		return nil, corecloudprovider.NewNodeClaimNotFoundError(fmt.Errorf("vmRef not found"))
 	}
-	vm := object.NewVirtualMachine(p.Client, vmRef.Reference())
+	vm := object.NewVirtualMachine(p.Session.Vim, vmRef.Reference())
 	return vm, nil
 }
