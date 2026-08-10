@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.1](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v3.0.0...v3.0.1) (2026-08-10)
+
+
+### Bug Fixes
+
+* re-authenticate vSphere session on expiry instead of failing with 401 ([bece561](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/bece56101478ec6ca42b810b07c4330435b0586f))
+
 ## [3.0.0](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v2.0.1...v3.0.0) (2026-07-02)
 
 
