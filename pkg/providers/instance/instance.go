@@ -110,7 +110,7 @@ func (p *DefaultProvider) Create(
 	claim *karpv1.NodeClaim,
 	instanceTypes []*corecloudprovider.InstanceType) (*Instance, error) {
 
-	if err := p.Finder.Session.EnsureValid(ctx); err == nil {
+	if err := p.Finder.Session.EnsureValid(ctx); err != nil {
 		return nil, fmt.Errorf("failed to ensure vsphere session is valid: %w", err)
 	}
 
