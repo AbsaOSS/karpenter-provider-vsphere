@@ -13,7 +13,7 @@ type VsphereNodeClassStatus struct {
 	Conditions []status.Condition `json:"conditions,omitempty"`
 }
 
-func (nc *VsphereNodeClass) StatusConditions() status.ConditionSet {
+func (nc *VsphereNodeClass) StatusConditions(...status.ForOption) status.ConditionSet {
 	conds := []string{
 		ConditionTypeKubernetesVersionReady,
 	}

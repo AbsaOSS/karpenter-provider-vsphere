@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/cloudprovider"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/controllers"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/operator"
@@ -28,8 +27,8 @@ func main() {
 		op.InstanceProvider,
 		op.GetClient(),
 	)
-
 	cloudProvider := metrics.Decorate(vsphereCloudProvider)
+	undecoratedCloudProvider := metrics.Decorate(vsphereCloudProvider)
 	clusterState := state.NewCluster(op.Clock, op.GetClient(), cloudProvider)
 	op.WithControllers(ctx, corecontrollers.NewControllers(
 		ctx,
@@ -38,7 +37,9 @@ func main() {
 		op.GetClient(),
 		op.EventRecorder,
 		cloudProvider,
+		undecoratedCloudProvider,
 		clusterState,
+		op.InstanceTypeStore,
 	)...).
 		WithControllers(ctx, controllers.NewControllers(
 			ctx,
