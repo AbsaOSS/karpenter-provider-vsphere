@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.2](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v3.0.1...v3.0.2) (2026-08-12)
+
+
+### Bug Fixes
+
+* fix error expression. ([#74](https://github.com/AbsaOSS/karpenter-provider-vsphere/issues/74)) ([02d0589](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/02d05894584ecd8546c22f899646ed094da5dd7a))
+
 ## [3.0.1](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v3.0.0...v3.0.1) (2026-08-10)
 
 
