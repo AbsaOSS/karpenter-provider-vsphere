@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.1.0](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v3.0.2...v3.1.0) (2026-08-12)
+
+
+### Features
+
+* Bump dependencies, add undecorated provider ([d7e2d55](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/d7e2d55f0718c0971a39786c97e77aa9a4bee48c))
+
+
+### Bug Fixes
+
+* .gitignore ([be34181](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/be3418141d28188e757d637c6e2b271fbceb1802))
+
 ## [3.0.2](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v3.0.1...v3.0.2) (2026-08-12)
 
 
