@@ -244,7 +244,18 @@ func getImageFromAnnotation(ctx context.Context, vm *object.VirtualMachine) stri
 		log.Log.Info(err.Error())
 		return "image_not_found"
 	}
+	return imageFromConfig(config)
+}
+
+func imageFromConfig(config *types.VirtualMachineConfigInfo) string {
+	if config == nil {
+		return "image_not_found"
+	}
 	return strings.TrimPrefix(config.Annotation, "cloned_from:")
+}
+
+func belongsToCluster(tags map[string]string, clusterName string) bool {
+	return tags[v1alpha1.ClusterNameTagKey] == clusterName
 }
 
 func (p *DefaultProvider) List(ctx context.Context) ([]*Instance, error) {
@@ -281,7 +292,7 @@ func (p *DefaultProvider) List(ctx context.Context) ([]*Instance, error) {
 			log.FromContext(ctx).Error(err, fmt.Sprintf("failed to extract creation date for VM %s", vm.Name()))
 		}
 		// find only VMs belonging to current cluster
-		if tags["karpneter.sh/clustername"] != p.ClusterName {
+		if !belongsToCluster(tags, p.ClusterName) {
 			continue
 		}
 		instances = append(instances, NewInstance(vm, uuid, image, string(ps), vm.Name(), *creationDate, tags))

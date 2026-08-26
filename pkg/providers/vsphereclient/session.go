@@ -30,12 +30,7 @@ type Session struct {
 }
 
 func NewSession(ctx context.Context, endpoint, username, password string, insecure bool) (*Session, error) {
-	u := &url.URL{
-		Scheme: "https",
-		Host:   endpoint,
-		Path:   "/sdk",
-	}
-	u.User = url.UserPassword(username, password)
+	u := sessionURL(endpoint, username, password)
 
 	cs := &cache.Session{
 		URL:         u,
@@ -60,6 +55,16 @@ func NewSession(ctx context.Context, endpoint, username, password string, insecu
 	s.Tags = tags.NewManager(s.Rest)
 
 	return s, nil
+}
+
+func sessionURL(endpoint, username, password string) *url.URL {
+	u := &url.URL{
+		Scheme: "https",
+		Host:   endpoint,
+		Path:   "/sdk",
+	}
+	u.User = url.UserPassword(username, password)
+	return u
 }
 
 // EnsureValid checks whether the SOAP and REST sessions are still
