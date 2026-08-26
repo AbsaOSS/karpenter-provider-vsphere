@@ -25,6 +25,8 @@ import (
 	corecloudprovider "sigs.k8s.io/karpenter/pkg/cloudprovider"
 )
 
+const ImageNotFound = "image_not_found"
+
 type Provider interface {
 	Create(context.Context, *v1alpha1.VsphereNodeClass, *karpv1.NodeClaim, []*corecloudprovider.InstanceType) (*Instance, error)
 	Get(context.Context, string) (*Instance, error)
@@ -242,14 +244,14 @@ func getImageFromAnnotation(ctx context.Context, vm *object.VirtualMachine) stri
 	config, err := getVMConfig(ctx, vm, []string{"config.annotation"})
 	if err != nil {
 		log.Log.Info(err.Error())
-		return "image_not_found"
+		return ImageNotFound
 	}
 	return imageFromConfig(config)
 }
 
 func imageFromConfig(config *types.VirtualMachineConfigInfo) string {
 	if config == nil {
-		return "image_not_found"
+		return ImageNotFound
 	}
 	return strings.TrimPrefix(config.Annotation, "cloned_from:")
 }

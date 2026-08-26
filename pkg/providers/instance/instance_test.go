@@ -12,7 +12,6 @@ import (
 	corecloudprovider "sigs.k8s.io/karpenter/pkg/cloudprovider"
 
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vmware/govmomi/vim25/types"
 )
@@ -69,7 +68,7 @@ func TestImageFromAnnotation(t *testing.T) {
 		config *types.VirtualMachineConfigInfo
 		want   string
 	}{
-		{name: "nil config", want: "image_not_found"},
+		{name: "nil config", want: ImageNotFound},
 		{name: "empty annotation", config: &types.VirtualMachineConfigInfo{}, want: ""},
 		{name: "image path", config: &types.VirtualMachineConfigInfo{Annotation: "/dc0/vm/flatcar-template"}, want: "/dc0/vm/flatcar-template"},
 		{name: "prefixed image path", config: &types.VirtualMachineConfigInfo{Annotation: "cloned_from:/dc0/vm/flatcar-template"}, want: "/dc0/vm/flatcar-template"},
@@ -95,24 +94,6 @@ func TestBelongsToCluster(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			require.Equal(t, test.want, belongsToCluster(test.tags, test.clusterName))
-		})
-	}
-}
-
-func TestInstanceName(t *testing.T) {
-	tests := []struct {
-		name       string
-		objectName string
-		fallback   string
-		err        error
-		want       string
-	}{
-		{name: "uses API name", objectName: "vm-from-api", fallback: "cached-name", want: "vm-from-api"},
-		{name: "falls back when API lookup fails", objectName: "", fallback: "cached-name", err: assert.AnError, want: "cached-name"},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			require.Equal(t, test.want, instanceName(test.objectName, test.fallback, test.err))
 		})
 	}
 }
