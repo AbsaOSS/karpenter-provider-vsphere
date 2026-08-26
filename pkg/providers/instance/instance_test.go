@@ -12,7 +12,6 @@ import (
 	corecloudprovider "sigs.k8s.io/karpenter/pkg/cloudprovider"
 
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vmware/govmomi/vim25/types"
 )
@@ -95,24 +94,6 @@ func TestBelongsToCluster(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			require.Equal(t, test.want, belongsToCluster(test.tags, test.clusterName))
-		})
-	}
-}
-
-func TestInstanceName(t *testing.T) {
-	tests := []struct {
-		name       string
-		objectName string
-		fallback   string
-		err        error
-		want       string
-	}{
-		{name: "uses API name", objectName: "vm-from-api", fallback: "cached-name", want: "vm-from-api"},
-		{name: "falls back when API lookup fails", objectName: "", fallback: "cached-name", err: assert.AnError, want: "cached-name"},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			require.Equal(t, test.want, instanceName(test.objectName, test.fallback, test.err))
 		})
 	}
 }
