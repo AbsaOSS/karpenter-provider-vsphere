@@ -10,7 +10,6 @@ import (
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/operator/options"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/userdata"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/vmware/govmomi/find"
 
@@ -77,7 +76,7 @@ func (p *DefaultProvider) GenerateVMSpec(ctx context.Context, class *v1alpha1.Vs
 			Name:         name,
 			Annotation:   fmt.Sprintf("cloned_from:%s", image.InventoryPath),
 			NumCPUs:      int32(instanceType.Capacity.Cpu().Value()),
-			MemoryMB:     instanceType.Capacity.Memory().ScaledValue(resource.Mega),
+			MemoryMB:     utils.InstanceTypeToMegabytes(instanceType.Capacity.Memory()),
 			GuestId:      string(types.VirtualMachineGuestOsIdentifierOtherLinux64Guest), // This should be adjusted based on the OS type in the instance type.
 			DeviceChange: diskAndNet,
 			CreateDate:   &t,
@@ -122,7 +121,7 @@ func (p *DefaultProvider) Create(
 		karpv1.NodePoolLabelKey:      claim.Labels[karpv1.NodePoolLabelKey],
 		v1alpha1.LabelInstanceSize:   instanceType.Name,
 		v1alpha1.LabelInstanceCPU:    fmt.Sprintf("%d", instanceType.Capacity.Cpu().Value()),
-		v1alpha1.LabelInstanceMemory: fmt.Sprintf("%d", utils.GiToMb(instanceType.Capacity.Memory().ToDec().Value())),
+		v1alpha1.LabelInstanceMemory: fmt.Sprintf("%d", utils.InstanceTypeToMegabytes(instanceType.Capacity.Memory())),
 	}
 
 	maps.Copy(instanceTags, class.Spec.Tags)

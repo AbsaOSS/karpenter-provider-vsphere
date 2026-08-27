@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/awslabs/operatorpkg/serrors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"sigs.k8s.io/karpenter/pkg/cloudprovider"
 )
 
@@ -50,4 +51,12 @@ func GiToKb(size int64) int64 {
 }
 func GiToMb(size int64) int64 {
 	return size * 1024
+}
+
+func BytesToMegabytes(bytes int64) int64 {
+	return bytes / (1024 * 1024)
+}
+
+func InstanceTypeToMegabytes(quantity *resource.Quantity) int64 {
+	return BytesToMegabytes(quantity.Value())
 }
