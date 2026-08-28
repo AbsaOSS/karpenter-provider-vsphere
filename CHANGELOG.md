@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.2.0](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v3.1.0...v3.2.0) (2026-08-28)
+
+
+### Features
+
+* vcsim simulator and finder_test ([#83](https://github.com/AbsaOSS/karpenter-provider-vsphere/issues/83)) ([aed25b0](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/aed25b022fb85a7a5228c7e7ce14a71b16debf8d))
+
 ## [3.1.0](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v3.0.2...v3.1.0) (2026-08-27)
 
 
