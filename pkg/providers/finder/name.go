@@ -10,7 +10,7 @@ import (
 
 func (p *Provider) PoolByName(ctx context.Context, name string) (*object.ResourcePool, error) {
 
-	poolPath := fmt.Sprintf("host/%s/Resources", name)
+	poolPath := fmt.Sprintf("/%s/host/%s/Resources", p.DC.Name(), name)
 	pool, err := p.FindClient.ResourcePool(ctx, poolPath)
 	return pool, err
 }
