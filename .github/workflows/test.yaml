@@ -15,21 +15,21 @@ jobs:
     name: go-test
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Install Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: ./go.mod
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: ~/.cache/go-build
           key: go-build.cache-{runner_os}-{working_directory}-{interval_number}-{go.mod_hash}
           restore-keys: |
             go-build.cache-{runner_os}-{working_directory}-{interval_number}-
       - name: Install Task
-        uses: go-task/setup-task@v1
+        uses: go-task/setup-task@v2
       - name: run test task
         run: |
           task -t taskfile.yaml test
