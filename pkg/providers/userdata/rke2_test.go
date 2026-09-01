@@ -5,6 +5,7 @@ import (
 
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -205,4 +206,31 @@ func TestRKE2IgnitionWithExtraButane(t *testing.T) {
 	res, err := par.Render(data, extraIgnition)
 	assert.Nil(t, err)
 	assert.Equal(t, string(expectedRKE2IgnitionWithExtra), string(res))
+}
+
+// RKE2 expects the singular "node-taint" key (see
+// https://docs.rke2.io/install/configuration); "node-taints" is silently
+// ignored by the agent (see commit b7bfcfd).
+func TestGetCommon_UsesSingularNodeTaintKey(t *testing.T) {
+	config, err := getCommon(initData, "install-cmd")
+	assert.Nil(t, err)
+	require.Len(t, config.Files, 1)
+
+	content := config.Files[0].Content
+	assert.Contains(t, content, "node-taint:")
+	assert.NotContains(t, content, "node-taints:")
+}
+
+func TestGetCommon_OmitsNodeTaintKeyWhenNoTaints(t *testing.T) {
+	input := &InitData{
+		Token:       "foo",
+		KubeVersion: "v1.35.4+rke2r1",
+		NodeName:    "testnode",
+	}
+
+	config, err := getCommon(input, "install-cmd")
+	assert.Nil(t, err)
+	require.Len(t, config.Files, 1)
+
+	assert.NotContains(t, config.Files[0].Content, "node-taint")
 }

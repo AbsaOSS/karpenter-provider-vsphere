@@ -2,6 +2,8 @@ package e2e
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -15,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/session"
+	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -169,6 +172,85 @@ func TestCreate_EnablesDiskUUID(t *testing.T) {
 	require.NotNil(t, spec.Config.Flags, "expected the clone spec's flags to be set")
 	require.NotNil(t, spec.Config.Flags.DiskUuidEnabled, "expected disk.EnableUUID to be set")
 	assert.True(t, *spec.Config.Flags.DiskUuidEnabled, "disk.EnableUUID must be true so CSI can attach disks by UUID")
+}
+
+// RKE2 expects the singular "node-taint" key (see
+// https://docs.rke2.io/install/configuration); "node-taints" is silently
+// ignored by the agent (see commit b7bfcfd). Unlike the userdata package's
+// template-level tests, this asserts on the actual guestinfo.userdata payload
+// vcsim recorded on the cloned VM, since ExtraConfig (unlike Flags) is
+// propagated by vcsim's CloneVMTask.
+func TestCreate_RKE2UserDataUsesSingularNodeTaintKey(t *testing.T) {
+	provider, class, ctx := setupInstanceProvider(t)
+
+	created, err := provider.Create(ctx, class, testNodeClaim("claim-node-taint"), testInstanceTypes())
+	require.NoError(t, err)
+
+	vm, err := provider.Finder.GetVMByID(ctx, created.ID)
+	require.NoError(t, err)
+
+	var vmMo mo.VirtualMachine
+	require.NoError(t, vm.Properties(ctx, vm.Reference(), []string{"config.extraConfig"}, &vmMo))
+
+	userData := extraConfigValue(vmMo.Config.ExtraConfig, "guestinfo.userdata")
+	require.NotEmpty(t, userData, "expected guestinfo.userdata to be set on the cloned VM")
+
+	decoded, err := base64.StdEncoding.DecodeString(userData)
+	require.NoError(t, err)
+
+	assert.Contains(t, string(decoded), "node-taint:")
+	assert.NotContains(t, string(decoded), "node-taints:")
+}
+
+func extraConfigValue(extraConfig []types.BaseOptionValue, key string) string {
+	for _, ov := range extraConfig {
+		opt := ov.GetOptionValue()
+		if opt.Key == key {
+			if s, ok := opt.Value.(string); ok {
+				return s
+			}
+		}
+	}
+	return ""
+}
+
+// commit 69f85d4 added ignition userdata support (butane rendered to
+// Ignition JSON); this exercises Create() end-to-end with UserDataType
+// Ignition and decodes the real guestinfo.ignition.config.data vcsim
+// recorded on the cloned VM.
+func TestCreate_IgnitionUserData(t *testing.T) {
+	provider, class, ctx := setupInstanceProvider(t)
+	class.Spec.UserData.Type = v1alpha1.UserDataTypeIgnition
+
+	created, err := provider.Create(ctx, class, testNodeClaim("claim-ignition"), testInstanceTypes())
+	require.NoError(t, err)
+
+	vm, err := provider.Finder.GetVMByID(ctx, created.ID)
+	require.NoError(t, err)
+
+	var vmMo mo.VirtualMachine
+	require.NoError(t, vm.Properties(ctx, vm.Reference(), []string{"config.extraConfig"}, &vmMo))
+
+	ignitionData := extraConfigValue(vmMo.Config.ExtraConfig, "guestinfo.ignition.config.data")
+	require.NotEmpty(t, ignitionData, "expected guestinfo.ignition.config.data to be set on the cloned VM")
+
+	decoded, err := base64.StdEncoding.DecodeString(ignitionData)
+	require.NoError(t, err)
+
+	var ign map[string]any
+	require.NoError(t, json.Unmarshal(decoded, &ign), "expected valid Ignition JSON")
+
+	storage, ok := ign["storage"].(map[string]any)
+	require.True(t, ok, "expected an ignition storage section")
+	files, ok := storage["files"].([]any)
+	require.True(t, ok, "expected ignition storage.files to be a list")
+	assert.NotEmpty(t, files, "expected the rendered config.yaml and node-join.sh files to be present")
+
+	systemd, ok := ign["systemd"].(map[string]any)
+	require.True(t, ok, "expected an ignition systemd section")
+	units, ok := systemd["units"].([]any)
+	require.True(t, ok, "expected ignition systemd.units to be a list")
+	assert.NotEmpty(t, units, "expected the node-join.service unit to be present")
 }
 
 func TestGet(t *testing.T) {
