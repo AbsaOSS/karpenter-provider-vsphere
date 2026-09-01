@@ -152,6 +152,25 @@ func TestCreate_UsesFirstInstanceType(t *testing.T) {
 	assert.Equal(t, "test-type", inst.Type)
 }
 
+// disk.EnableUUID must be true on cloned VMs, otherwise CSI cannot attach
+// disks to karpenter-provisioned nodes by UUID (see commit ce8da36).
+// vcsim's CloneVMTask does not propagate Config.Flags to the resulting VM
+// (only a handful of fields are copied over), so this asserts on the
+// generated CloneSpec rather than the round-tripped VM.
+func TestCreate_EnablesDiskUUID(t *testing.T) {
+	provider, class, ctx := setupInstanceProvider(t)
+
+	vmTemplate, err := provider.Finder.ResolveImage(ctx, class.Spec.ImageSelector)
+	require.NoError(t, err)
+
+	spec, err := provider.GenerateVMSpec(ctx, class, "test-vm", vmTemplate, testInstanceTypes()[0])
+	require.NoError(t, err)
+
+	require.NotNil(t, spec.Config.Flags, "expected the clone spec's flags to be set")
+	require.NotNil(t, spec.Config.Flags.DiskUuidEnabled, "expected disk.EnableUUID to be set")
+	assert.True(t, *spec.Config.Flags.DiskUuidEnabled, "disk.EnableUUID must be true so CSI can attach disks by UUID")
+}
+
 func TestGet(t *testing.T) {
 	provider, class, ctx := setupInstanceProvider(t)
 
