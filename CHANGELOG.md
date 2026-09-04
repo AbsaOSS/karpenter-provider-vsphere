@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.2.0](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v3.1.0...v3.2.0) (2026-09-04)
+
+
+### Features
+
+* vcsim simulator and finder_test ([#83](https://github.com/AbsaOSS/karpenter-provider-vsphere/issues/83)) ([aed25b0](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/aed25b022fb85a7a5228c7e7ce14a71b16debf8d))
+
+
+### Bug Fixes
+
+* change cloned_from annotation format ([6815d32](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/6815d32aa52d064b7d1789730771c06fbcfa04e1))
+* finder, instance and session e2e vcsim tests ([99a0239](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/99a0239e3ec65eb764b14f75094e09e826064ce5))
+* Karpenter capacity type OnDemand replaced with on-demand ([b46da1c](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/b46da1c3c3d68bee36e0ecbd42ad055da40b8ba5))
+
 ## [3.1.0](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v3.0.2...v3.1.0) (2026-08-27)
 
 
