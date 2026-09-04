@@ -70,8 +70,8 @@ func TestImageFromAnnotation(t *testing.T) {
 	}{
 		{name: "nil config", want: ImageNotFound},
 		{name: "empty annotation", config: &types.VirtualMachineConfigInfo{}, want: ""},
-		{name: "image path", config: &types.VirtualMachineConfigInfo{Annotation: "/dc0/vm/flatcar-template"}, want: "/dc0/vm/flatcar-template"},
 		{name: "prefixed image path", config: &types.VirtualMachineConfigInfo{Annotation: "cloned_from:/dc0/vm/flatcar-template"}, want: "/dc0/vm/flatcar-template"},
+		{name: "prefixed image new key", config: &types.VirtualMachineConfigInfo{Annotation: "cloned_from: /dc0/vm/flatcar-template"}, want: "/dc0/vm/flatcar-template"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

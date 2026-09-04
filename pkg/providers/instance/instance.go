@@ -76,7 +76,7 @@ func (p *DefaultProvider) GenerateVMSpec(ctx context.Context, class *v1alpha1.Vs
 				DiskUuidEnabled: &diskEnableUUID,
 			},
 			Name:         name,
-			Annotation:   fmt.Sprintf("cloned_from:%s", image.InventoryPath),
+			Annotation:   fmt.Sprintf("cloned_from: %s", image.InventoryPath),
 			NumCPUs:      int32(instanceType.Capacity.Cpu().Value()),
 			MemoryMB:     utils.InstanceTypeToMegabytes(instanceType.Capacity.Memory()),
 			GuestId:      string(types.VirtualMachineGuestOsIdentifierOtherLinux64Guest), // This should be adjusted based on the OS type in the instance type.
@@ -253,7 +253,8 @@ func imageFromConfig(config *types.VirtualMachineConfigInfo) string {
 	if config == nil {
 		return ImageNotFound
 	}
-	return strings.TrimPrefix(config.Annotation, "cloned_from:")
+	image := strings.TrimPrefix(config.Annotation, "cloned_from:")
+	return strings.TrimPrefix(image, " ")
 }
 
 func belongsToCluster(tags map[string]string, clusterName string) bool {
