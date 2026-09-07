@@ -113,6 +113,8 @@ spec:
               instanceTypes:
                 items:
                   properties:
+                    name:
+                      type: string
                     arch:
                       type: string
                     cpu:

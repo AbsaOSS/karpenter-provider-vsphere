@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis"
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/cloudprovider"
 	"github.com/vmware/govmomi/find"
 	"k8s.io/client-go/kubernetes"
 
@@ -31,6 +32,7 @@ type Operator struct {
 	KubernetesVersionProvider    kubernetesversion.KubernetesVersionProvider
 	InstanceProvider             instance.Provider
 	FinderProvider               *finder.Provider
+	InstanceProfilesProvider     cloudprovider.InstanceProfilesProvider
 }
 
 func NewOperator(ctx context.Context, operator *operator.Operator) (context.Context, *Operator) {

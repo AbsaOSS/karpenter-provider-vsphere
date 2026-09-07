@@ -39,6 +39,7 @@ const (
 type CloudProvider struct {
 	instanceProvider instance.Provider
 	kubeClient       client.Client
+	instanceProfiles InstanceProfilesProvider
 }
 
 // Name returns the CloudProvider implementation name.
@@ -50,10 +51,11 @@ func (c *CloudProvider) GetSupportedNodeClasses() []status.Object {
 	return []status.Object{&v1alpha1.VsphereNodeClass{}}
 }
 
-func New(instanceProvider instance.Provider, kubeClient client.Client) *CloudProvider {
+func New(instanceProvider instance.Provider, kubeClient client.Client, instanceProfilesProvider InstanceProfilesProvider) *CloudProvider {
 	return &CloudProvider{
 		instanceProvider: instanceProvider,
 		kubeClient:       kubeClient,
+		instanceProfiles: instanceProfilesProvider,
 	}
 }
 
@@ -81,7 +83,7 @@ func (c *CloudProvider) Create(ctx context.Context, nodeClaim *karpv1.NodeClaim)
 		return nil, err
 	}
 
-	instanceTypes, err := c.resolveInstanceTypes(nodeClaim, nodeClass)
+	instanceTypes, err := c.resolveInstanceTypes(ctx, nodeClaim, nodeClass)
 	if err != nil {
 		return nil, cloudprovider.NewCreateError(fmt.Errorf("resolving instance types, %w", err), InstanceTypeResolutionFailedReason, err.Error())
 	}
@@ -243,7 +245,7 @@ func (c *CloudProvider) GetInstanceTypes(ctx context.Context, pool *karpv1.NodeP
 	if err != nil {
 		return nil, fmt.Errorf("resolving node class, %w", err)
 	}
-	instanceTypes := instanceTypesFromNodeClass(nodeClass)
+	instanceTypes := instanceTypesFromNodeClass(ctx, nodeClass, c.instanceProfiles)
 
 	return instanceTypes, err
 }
@@ -279,41 +281,78 @@ func toCPITypeFormat(cpu, mem, os string) string {
 	mem = strings.TrimSuffix(mem, "Gi")
 	return fmt.Sprintf("vsphere-vm.cpu-%s.mem-%sgb.os-%s", cpu, mem, os)
 }
-func instanceTypesFromNodeClass(nodeClass *v1alpha1.VsphereNodeClass) []*cloudprovider.InstanceType {
+func instanceTypesFromNodeClass(ctx context.Context, nodeClass *v1alpha1.VsphereNodeClass, instanceProfiles InstanceProfilesProvider) []*cloudprovider.InstanceType {
 	instanceTypes := []*cloudprovider.InstanceType{}
 	for _, t := range nodeClass.Spec.InstanceTypes {
 		os := strings.ToLower(t.OS)
-		typeName := toCPITypeFormat(t.CPU, t.Memory, os)
-		instanceType := &cloudprovider.InstanceType{
-			Name: typeName,
-			Requirements: scheduling.NewRequirements(
-				scheduling.NewRequirement(corev1.LabelInstanceTypeStable, corev1.NodeSelectorOpIn, typeName),
-				scheduling.NewRequirement(corev1.LabelArchStable, corev1.NodeSelectorOpIn, "amd64"),
-				scheduling.NewRequirement(corev1.LabelOSStable, corev1.NodeSelectorOpIn, os),
-			),
-			Capacity: corev1.ResourceList{
-				corev1.ResourceCPU:              resource.MustParse(t.CPU),
-				corev1.ResourceMemory:           resource.MustParse(t.Memory),
-				corev1.ResourcePods:             resource.MustParse(t.MaxPods),
-				corev1.ResourceEphemeralStorage: resource.MustParse(utils.GiToByteAsString(nodeClass.Spec.DiskSize)),
-			},
-			//TODO: compute kubelet overhead
-			Overhead: &cloudprovider.InstanceTypeOverhead{},
-			Offerings: []*cloudprovider.Offering{
-				{
-					Requirements: scheduling.NewRequirements(
-						scheduling.NewRequirement(corev1.LabelTopologyZone, corev1.NodeSelectorOpIn, t.Zone)),
-					Price:     float64(0.0),
-					Available: true,
+		var instanceType *cloudprovider.InstanceType
+		if t.Name != "" {
+			if profile, err := instanceProfiles.Get(ctx, t.Name); err == nil {
+				instanceType = createInstanceType(profile, t, nodeClass)
+			}
+		} else {
+			typeName := toCPITypeFormat(t.CPU, t.Memory, os)
+			instanceType = &cloudprovider.InstanceType{
+				Name: typeName,
+				Requirements: scheduling.NewRequirements(
+					scheduling.NewRequirement(corev1.LabelInstanceTypeStable, corev1.NodeSelectorOpIn, typeName),
+					scheduling.NewRequirement(corev1.LabelArchStable, corev1.NodeSelectorOpIn, "amd64"),
+					scheduling.NewRequirement(corev1.LabelOSStable, corev1.NodeSelectorOpIn, os),
+				),
+				Capacity: corev1.ResourceList{
+					corev1.ResourceCPU:              resource.MustParse(t.CPU),
+					corev1.ResourceMemory:           resource.MustParse(t.Memory),
+					corev1.ResourcePods:             resource.MustParse(t.MaxPods),
+					corev1.ResourceEphemeralStorage: resource.MustParse(utils.GiToByteAsString(nodeClass.Spec.DiskSize)),
 				},
-			},
+				//TODO: compute kubelet overhead
+				Overhead: &cloudprovider.InstanceTypeOverhead{},
+				Offerings: []*cloudprovider.Offering{
+					{
+						Requirements: scheduling.NewRequirements(
+							scheduling.NewRequirement(corev1.LabelTopologyZone, corev1.NodeSelectorOpIn, t.Zone)),
+						Price:     float64(100.0),
+						Available: true,
+					},
+				},
+			}
 		}
-		instanceTypes = append(instanceTypes, instanceType)
+		if instanceType != nil {
+			instanceTypes = append(instanceTypes, instanceType)
+		}
 	}
 	return instanceTypes
 }
-func (c *CloudProvider) resolveInstanceTypes(nodeClaim *karpv1.NodeClaim, nodeClass *v1alpha1.VsphereNodeClass) ([]*cloudprovider.InstanceType, error) {
-	instanceTypes := instanceTypesFromNodeClass(nodeClass)
+
+func createInstanceType(profile *InstanceProfile, t v1alpha1.InstanceType, nodeClass *v1alpha1.VsphereNodeClass) *cloudprovider.InstanceType {
+	return &cloudprovider.InstanceType{
+		Name: profile.Name(),
+		Requirements: scheduling.NewRequirements(
+			scheduling.NewRequirement(corev1.LabelInstanceTypeStable, corev1.NodeSelectorOpIn, profile.Name()),
+			scheduling.NewRequirement(corev1.LabelArchStable, corev1.NodeSelectorOpIn, "amd64"),
+			scheduling.NewRequirement(corev1.LabelOSStable, corev1.NodeSelectorOpIn, t.OS),
+		),
+		Capacity: corev1.ResourceList{
+			corev1.ResourceCPU:              resource.MustParse(fmt.Sprintf("%d", profile.VCPU)),
+			corev1.ResourceMemory:           resource.MustParse(fmt.Sprintf("%dGi", profile.MemGiB())),
+			corev1.ResourcePods:             resource.MustParse(t.MaxPods),
+			corev1.ResourceEphemeralStorage: resource.MustParse(utils.GiToByteAsString(nodeClass.Spec.DiskSize)),
+		},
+		//TODO: compute kubelet overhead
+		Overhead: &cloudprovider.InstanceTypeOverhead{},
+		Offerings: []*cloudprovider.Offering{
+			{
+				Requirements: scheduling.NewRequirements(
+					scheduling.NewRequirement(corev1.LabelTopologyZone, corev1.NodeSelectorOpIn, t.Zone)),
+				Price:     profile.Price(),
+				Available: true,
+			},
+		},
+	}
+}
+
+func (c *CloudProvider) resolveInstanceTypes(ctx context.Context, nodeClaim *karpv1.NodeClaim, nodeClass *v1alpha1.VsphereNodeClass) ([]*cloudprovider.InstanceType, error) {
+	instanceTypes := instanceTypesFromNodeClass(ctx, nodeClass, c.instanceProfiles)
 	reqs := scheduling.NewNodeSelectorRequirementsWithMinValues(nodeClaim.Spec.Requirements...)
 	return lo.Filter(instanceTypes, func(i *cloudprovider.InstanceType, _ int) bool {
 		return reqs.Compatible(i.Requirements, scheduling.AllowUndefinedWellKnownLabels) == nil &&

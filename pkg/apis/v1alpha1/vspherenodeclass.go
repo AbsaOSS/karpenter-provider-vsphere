@@ -117,8 +117,9 @@ type UserData struct {
 }
 
 type InstanceType struct {
-	CPU     string `json:"cpu,omitempty"`
-	Memory  string `json:"memory,omitempty"`
+	Name    string `json:"name,omitempty"`
+	CPU     string `json:"cpu,omitempty"`    // Deprecated: Kept for compatibility.
+	Memory  string `json:"memory,omitempty"` // Deprecated: Kept for compatibility.
 	MaxPods string `json:"maxPods,omitempty"`
 	OS      string `json:"os,omitempty"`
 	Arch    string `json:"arch,omitempty"`
