@@ -312,6 +312,134 @@ func TestInstanceToNodeClaimPoweredOff(t *testing.T) {
 	)
 }
 
+func TestInstanceTypesFromNodeClass(t *testing.T) {
+	nodeClass := &v1alpha1.VsphereNodeClass{
+		Spec: v1alpha1.VsphereNodeClassSpec{
+			DiskSize: 100,
+			InstanceTypes: []v1alpha1.InstanceType{
+				{
+					CPU:     "4",
+					Memory:  "16Gi",
+					MaxPods: "110",
+					Zone:    "zone-a",
+					OS:      "Linux",
+				},
+				{
+					CPU:     "2",
+					Memory:  "8Gi",
+					MaxPods: "55",
+					Zone:    "zone-b",
+					OS:      "linux",
+				},
+			},
+		},
+	}
+
+	instanceTypes := instanceTypesFromNodeClass(nodeClass)
+
+	require.Len(t, instanceTypes, 2, "expected 2 instance types")
+
+	t.Run("creates instance type with correct name format", func(t *testing.T) {
+		assert.Equal(
+			t,
+			"vsphere-vm.cpu-4.mem-16gb.os-linux",
+			instanceTypes[0].Name,
+		)
+		assert.Equal(
+			t,
+			"vsphere-vm.cpu-2.mem-8gb.os-linux",
+			instanceTypes[1].Name,
+		)
+	})
+
+	t.Run("sets instance type requirements", func(t *testing.T) {
+		requirements := instanceTypes[0].Requirements
+		require.NotNil(t, requirements)
+
+		// Verify instance type requirement
+		instanceTypeReq, ok := requirements[corev1.LabelInstanceTypeStable]
+		require.True(t, ok, "expected instance type requirement")
+		assert.Len(t, instanceTypeReq.Values(), 1)
+		assert.Equal(t, "vsphere-vm.cpu-4.mem-16gb.os-linux", instanceTypeReq.Values()[0])
+
+		// Verify architecture requirement
+		archReq, ok := requirements[corev1.LabelArchStable]
+		require.True(t, ok, "expected architecture requirement")
+		assert.Len(t, archReq.Values(), 1)
+		assert.Equal(t, "amd64", archReq.Values()[0])
+
+		// Verify OS requirement
+		osReq, ok := requirements[corev1.LabelOSStable]
+		require.True(t, ok, "expected OS requirement")
+		assert.Len(t, osReq.Values(), 1)
+		assert.Equal(t, "linux", osReq.Values()[0])
+	})
+
+	t.Run("sets offering requirements with capacity type", func(t *testing.T) {
+		offerings := instanceTypes[0].Offerings
+		require.Len(t, offerings, 1, "expected 1 offering per instance type")
+
+		offering := offerings[0]
+		require.NotNil(t, offering.Requirements)
+
+		// Verify topology zone requirement
+		zoneReq, ok := offering.Requirements[corev1.LabelTopologyZone]
+		require.True(t, ok, "expected topology zone requirement in offering")
+		assert.Len(t, zoneReq.Values(), 1)
+		assert.Equal(t, "zone-a", zoneReq.Values()[0])
+
+		// Verify capacity type requirement - this is the fix we're testing
+		capacityTypeReq, ok := offering.Requirements[karpv1.CapacityTypeLabelKey]
+		require.True(t, ok, "expected capacity type requirement in offering")
+		assert.Len(t, capacityTypeReq.Values(), 1)
+		assert.Equal(t, karpv1.CapacityTypeOnDemand, capacityTypeReq.Values()[0])
+	})
+
+	t.Run("sets offering properties", func(t *testing.T) {
+		offerings := instanceTypes[0].Offerings
+		offering := offerings[0]
+
+		assert.Equal(t, float64(0.0), offering.Price)
+		assert.True(t, offering.Available)
+	})
+
+	t.Run("sets capacity resources", func(t *testing.T) {
+		capacity := instanceTypes[0].Capacity
+		require.NotNil(t, capacity)
+
+		assertResourceQuantity(t, capacity, corev1.ResourceCPU, "4")
+		assertResourceQuantity(t, capacity, corev1.ResourceMemory, "16Gi")
+		assertResourceQuantity(t, capacity, corev1.ResourcePods, "110")
+		// Disk size is converted from Gi to bytes (100Gi)
+		assertResourceQuantity(t, capacity, corev1.ResourceEphemeralStorage, "107374182400")
+	})
+
+	t.Run("normalizes OS to lowercase", func(t *testing.T) {
+		// First instance has "Linux" (capitalized), second has "linux" (lowercase)
+		// Both should result in lowercase "linux" in name and requirements
+		osReq0, ok := instanceTypes[0].Requirements[corev1.LabelOSStable]
+		require.True(t, ok)
+		assert.Equal(t, "linux", osReq0.Values()[0])
+
+		osReq1, ok := instanceTypes[1].Requirements[corev1.LabelOSStable]
+		require.True(t, ok)
+		assert.Equal(t, "linux", osReq1.Values()[0])
+	})
+
+	t.Run("handles multiple instance types independently", func(t *testing.T) {
+		// Verify second instance type has different zone
+		offerings := instanceTypes[1].Offerings
+		zoneReq, ok := offerings[0].Requirements[corev1.LabelTopologyZone]
+		require.True(t, ok)
+		assert.Equal(t, "zone-b", zoneReq.Values()[0])
+
+		// Both should have same capacity type (OnDemand)
+		capacityTypeReq, ok := offerings[0].Requirements[karpv1.CapacityTypeLabelKey]
+		require.True(t, ok)
+		assert.Equal(t, karpv1.CapacityTypeOnDemand, capacityTypeReq.Values()[0])
+	})
+}
+
 func assertResourceQuantity(
 	t *testing.T,
 	resourceList corev1.ResourceList,

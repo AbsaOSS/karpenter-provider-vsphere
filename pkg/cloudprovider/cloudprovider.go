@@ -302,7 +302,9 @@ func instanceTypesFromNodeClass(nodeClass *v1alpha1.VsphereNodeClass) []*cloudpr
 			Offerings: []*cloudprovider.Offering{
 				{
 					Requirements: scheduling.NewRequirements(
-						scheduling.NewRequirement(corev1.LabelTopologyZone, corev1.NodeSelectorOpIn, t.Zone)),
+						scheduling.NewRequirement(corev1.LabelTopologyZone, corev1.NodeSelectorOpIn, t.Zone),
+						scheduling.NewRequirement(karpv1.CapacityTypeLabelKey, corev1.NodeSelectorOpIn, karpv1.CapacityTypeOnDemand),
+					),
 					Price:     float64(0.0),
 					Available: true,
 				},
