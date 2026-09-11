@@ -12,6 +12,7 @@ import (
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/finder"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/instance"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/kubernetesversion"
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/kwok"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/vsphereclient"
 
 	"github.com/patrickmn/go-cache"
@@ -31,6 +32,7 @@ type Operator struct {
 	KubernetesVersionProvider    kubernetesversion.KubernetesVersionProvider
 	InstanceProvider             instance.Provider
 	FinderProvider               *finder.Provider
+	InstanceProfilesProvider     kwok.KwokInstanceTypesProvider
 }
 
 func NewOperator(ctx context.Context, operator *operator.Operator) (context.Context, *Operator) {

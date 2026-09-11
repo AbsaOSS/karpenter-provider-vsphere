@@ -399,7 +399,7 @@ func TestInstanceTypesFromNodeClass(t *testing.T) {
 		offerings := instanceTypes[0].Offerings
 		offering := offerings[0]
 
-		assert.Equal(t, float64(0.0), offering.Price)
+		assert.Equal(t, float64(100.0), offering.Price)
 		assert.True(t, offering.Available)
 	})
 

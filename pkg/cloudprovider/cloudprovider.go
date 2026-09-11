@@ -10,6 +10,7 @@ import (
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/instance"
+	kwok "github.com/absaoss/karpenter-provider-vsphere/pkg/providers/kwok"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/utils"
 	"github.com/awslabs/operatorpkg/status"
 	"github.com/samber/lo"
@@ -37,8 +38,9 @@ const (
 )
 
 type CloudProvider struct {
-	instanceProvider instance.Provider
-	kubeClient       client.Client
+	instanceProvider          instance.Provider
+	kubeClient                client.Client
+	kwokInstanceTypesProvider kwok.KwokInstanceTypesProvider
 }
 
 // Name returns the CloudProvider implementation name.
@@ -50,10 +52,11 @@ func (c *CloudProvider) GetSupportedNodeClasses() []status.Object {
 	return []status.Object{&v1alpha1.VsphereNodeClass{}}
 }
 
-func New(instanceProvider instance.Provider, kubeClient client.Client) *CloudProvider {
+func New(instanceProvider instance.Provider, kubeClient client.Client, kwokInstanceTypesProvider kwok.KwokInstanceTypesProvider) *CloudProvider {
 	return &CloudProvider{
-		instanceProvider: instanceProvider,
-		kubeClient:       kubeClient,
+		instanceProvider:          instanceProvider,
+		kubeClient:                kubeClient,
+		kwokInstanceTypesProvider: kwokInstanceTypesProvider,
 	}
 }
 
@@ -81,7 +84,7 @@ func (c *CloudProvider) Create(ctx context.Context, nodeClaim *karpv1.NodeClaim)
 		return nil, err
 	}
 
-	instanceTypes, err := c.resolveInstanceTypes(nodeClaim, nodeClass)
+	instanceTypes, err := c.resolveInstanceTypes(ctx, nodeClaim, nodeClass)
 	if err != nil {
 		return nil, cloudprovider.NewCreateError(fmt.Errorf("resolving instance types, %w", err), InstanceTypeResolutionFailedReason, err.Error())
 	}
@@ -279,6 +282,7 @@ func toCPITypeFormat(cpu, mem, os string) string {
 	mem = strings.TrimSuffix(mem, "Gi")
 	return fmt.Sprintf("vsphere-vm.cpu-%s.mem-%sgb.os-%s", cpu, mem, os)
 }
+
 func instanceTypesFromNodeClass(nodeClass *v1alpha1.VsphereNodeClass) []*cloudprovider.InstanceType {
 	instanceTypes := []*cloudprovider.InstanceType{}
 	for _, t := range nodeClass.Spec.InstanceTypes {
@@ -305,7 +309,7 @@ func instanceTypesFromNodeClass(nodeClass *v1alpha1.VsphereNodeClass) []*cloudpr
 						scheduling.NewRequirement(corev1.LabelTopologyZone, corev1.NodeSelectorOpIn, t.Zone),
 						scheduling.NewRequirement(karpv1.CapacityTypeLabelKey, corev1.NodeSelectorOpIn, karpv1.CapacityTypeOnDemand),
 					),
-					Price:     float64(0.0),
+					Price:     float64(100.0),
 					Available: true,
 				},
 			},
@@ -314,15 +318,24 @@ func instanceTypesFromNodeClass(nodeClass *v1alpha1.VsphereNodeClass) []*cloudpr
 	}
 	return instanceTypes
 }
-func (c *CloudProvider) resolveInstanceTypes(nodeClaim *karpv1.NodeClaim, nodeClass *v1alpha1.VsphereNodeClass) ([]*cloudprovider.InstanceType, error) {
-	instanceTypes := instanceTypesFromNodeClass(nodeClass)
+
+func (c *CloudProvider) resolveInstanceTypes(ctx context.Context, nodeClaim *karpv1.NodeClaim, nodeClass *v1alpha1.VsphereNodeClass) ([]*cloudprovider.InstanceType, error) {
+	instanceTypesFromCR := instanceTypesFromNodeClass(nodeClass)
+	kwokInstanceTypes, _ := c.kwokInstanceTypesProvider.List(ctx, nodeClass.Spec.DiskSize)
+	instanceTypes := append(instanceTypesFromCR, kwokInstanceTypes...)
 	reqs := scheduling.NewNodeSelectorRequirementsWithMinValues(nodeClaim.Spec.Requirements...)
+	// Get resource requests, defaulting to empty ResourceList if not specified
+	resourceRequests := nodeClaim.Spec.Resources.Requests
+	if resourceRequests == nil {
+		resourceRequests = corev1.ResourceList{}
+	}
 	return lo.Filter(instanceTypes, func(i *cloudprovider.InstanceType, _ int) bool {
 		return reqs.Compatible(i.Requirements, scheduling.AllowUndefinedWellKnownLabels) == nil &&
 			len(i.Offerings.Compatible(reqs).Available()) > 0 &&
-			resources.Fits(nodeClaim.Spec.Resources.Requests, i.Allocatable())
+			resources.Fits(resourceRequests, i.Allocatable())
 	}), nil
 }
+
 func (c *CloudProvider) resolveNodeClassFromNodeClaim(ctx context.Context, nodeClaim *karpv1.NodeClaim) (*v1alpha1.VsphereNodeClass, error) {
 	nodeClass := &v1alpha1.VsphereNodeClass{}
 	if err := c.kubeClient.Get(ctx, types.NamespacedName{Name: nodeClaim.Spec.NodeClassRef.Name}, nodeClass); err != nil {
