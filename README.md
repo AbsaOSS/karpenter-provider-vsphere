@@ -17,6 +17,8 @@ Karpenter provider for VMWare Vsphere
 | vsphere-insecure | GOVC_INSECURE        | false    |
 | join-token       | JOIN_TOKEN           | true     |
 | kube-distro      | KUBE_DISTRO          | true     |
+| zone             | ZONE                 | true     |
+| region           | REGION               | true     |
 
 
 # About supported distros

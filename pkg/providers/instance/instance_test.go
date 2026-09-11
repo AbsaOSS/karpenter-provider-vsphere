@@ -70,12 +70,37 @@ func TestImageFromAnnotation(t *testing.T) {
 	}{
 		{name: "nil config", want: ImageNotFound},
 		{name: "empty annotation", config: &types.VirtualMachineConfigInfo{}, want: ""},
-		{name: "prefixed image path", config: &types.VirtualMachineConfigInfo{Annotation: "cloned_from:/dc0/vm/flatcar-template"}, want: "/dc0/vm/flatcar-template"},
-		{name: "prefixed image new key", config: &types.VirtualMachineConfigInfo{Annotation: "cloned_from: /dc0/vm/flatcar-template"}, want: "/dc0/vm/flatcar-template"},
+		{name: "legacy format without space", config: &types.VirtualMachineConfigInfo{Annotation: "cloned_from:/dc0/vm/flatcar-template"}, want: "/dc0/vm/flatcar-template"},
+		{name: "legacy format with space", config: &types.VirtualMachineConfigInfo{Annotation: "cloned_from: /dc0/vm/flatcar-template"}, want: "/dc0/vm/flatcar-template"},
+		{name: "yaml format with both keys", config: &types.VirtualMachineConfigInfo{Annotation: "cloned_from: /DC0/vm/flatcar-template\ninstanceType: s-2x\n"}, want: "/DC0/vm/flatcar-template"},
+		{name: "yaml format reordered keys", config: &types.VirtualMachineConfigInfo{Annotation: "instanceType: s-2x\ncloned_from: /DC0/vm/flatcar-template\n"}, want: "/DC0/vm/flatcar-template"},
+		{name: "yaml with only cloned_from", config: &types.VirtualMachineConfigInfo{Annotation: "cloned_from: /dc0/vm/flatcar-template\n"}, want: "/dc0/vm/flatcar-template"},
+		{name: "no recognized key falls back to raw string", config: &types.VirtualMachineConfigInfo{Annotation: "/dc0/vm/flatcar-template"}, want: "/dc0/vm/flatcar-template"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			require.Equal(t, test.want, imageFromConfig(test.config))
+		})
+	}
+}
+
+func TestInstanceTypeFromAnnotation(t *testing.T) {
+	tests := []struct {
+		name   string
+		config *types.VirtualMachineConfigInfo
+		want   string
+	}{
+		{name: "nil config", want: ""},
+		{name: "empty annotation", config: &types.VirtualMachineConfigInfo{}, want: ""},
+		{name: "legacy format, no instance_type key without space", config: &types.VirtualMachineConfigInfo{Annotation: "cloned_from:/dc0/vm/flatcar-template"}, want: ""},
+		{name: "legacy format, no instance_type key", config: &types.VirtualMachineConfigInfo{Annotation: "cloned_from: /dc0/vm/flatcar-template"}, want: ""},
+		{name: "yaml format", config: &types.VirtualMachineConfigInfo{Annotation: "cloned_from: /DC0/vm/flatcar-template\ninstanceType: s-2x\n"}, want: "s-2x"},
+		{name: "yaml format reordered", config: &types.VirtualMachineConfigInfo{Annotation: "instanceType: s-2x\ncloned_from: /DC0/vm/flatcar-template\n"}, want: "s-2x"},
+		{name: "yaml with only instanceType", config: &types.VirtualMachineConfigInfo{Annotation: "instanceType: m-4x\n"}, want: "m-4x"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.want, instanceTypeFromConfig(test.config))
 		})
 	}
 }

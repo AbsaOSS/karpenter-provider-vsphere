@@ -282,6 +282,7 @@ func toCPITypeFormat(cpu, mem, os string) string {
 	mem = strings.TrimSuffix(mem, "Gi")
 	return fmt.Sprintf("vsphere-vm.cpu-%s.mem-%sgb.os-%s", cpu, mem, os)
 }
+
 func instanceTypesFromNodeClass(nodeClass *v1alpha1.VsphereNodeClass) []*cloudprovider.InstanceType {
 	instanceTypes := []*cloudprovider.InstanceType{}
 	for _, t := range nodeClass.Spec.InstanceTypes {

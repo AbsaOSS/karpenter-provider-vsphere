@@ -19,6 +19,7 @@ import (
 	"github.com/vmware/govmomi/object"
 	models "github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
+	"go.yaml.in/yaml/v3"
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	karpv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
@@ -26,6 +27,10 @@ import (
 )
 
 const ImageNotFound = "image_not_found"
+const (
+	clonedFromFieldKey    = "cloned_from"
+	instanceTypeFieldKey  = "instanceType"
+)
 
 type Provider interface {
 	Create(context.Context, *v1alpha1.VsphereNodeClass, *karpv1.NodeClaim, []*corecloudprovider.InstanceType) (*Instance, error)
@@ -76,7 +81,7 @@ func (p *DefaultProvider) GenerateVMSpec(ctx context.Context, class *v1alpha1.Vs
 				DiskUuidEnabled: &diskEnableUUID,
 			},
 			Name:         name,
-			Annotation:   fmt.Sprintf("cloned_from: %s", image.InventoryPath),
+			Annotation:   buildAnnotation(image.InventoryPath, instanceType.Name),
 			NumCPUs:      int32(instanceType.Capacity.Cpu().Value()),
 			MemoryMB:     utils.InstanceTypeToMegabytes(instanceType.Capacity.Memory()),
 			GuestId:      string(types.VirtualMachineGuestOsIdentifierOtherLinux64Guest), // This should be adjusted based on the OS type in the instance type.
@@ -249,12 +254,54 @@ func getImageFromAnnotation(ctx context.Context, vm *object.VirtualMachine) stri
 	return imageFromConfig(config)
 }
 
+// buildAnnotation renders the VM annotation as a YAML document.
+func buildAnnotation(imagePath, instanceType string) string {
+	doc, err := yaml.Marshal(map[string]string{
+		clonedFromFieldKey:   imagePath,
+		instanceTypeFieldKey: instanceType,
+	})
+	if err != nil {
+		return ""
+	}
+	return string(doc)
+}
+
+// parseAnnotation parses the YAML document written by buildAnnotation into a map.
+// Falls back to lenient parsing for legacy formats like "cloned_from:/path" or "cloned_from: /path".
+func parseAnnotation(annotation string) map[string]string {
+	result := map[string]string{}
+	if err := yaml.Unmarshal([]byte(annotation), &result); err != nil {
+		// Fallback for legacy format: parse "key:value" or "key: value" per line
+		for _, line := range strings.Split(strings.TrimSpace(annotation), "\n") {
+			if line == "" {
+				continue
+			}
+			key, value, found := strings.Cut(line, ":")
+			if !found {
+				continue
+			}
+			result[strings.TrimSpace(key)] = strings.TrimSpace(value)
+		}
+	}
+	return result
+}
+
 func imageFromConfig(config *types.VirtualMachineConfigInfo) string {
 	if config == nil {
 		return ImageNotFound
 	}
-	image := strings.TrimPrefix(config.Annotation, "cloned_from:")
-	return strings.TrimPrefix(image, " ")
+	if image, ok := parseAnnotation(config.Annotation)[clonedFromFieldKey]; ok {
+		return image
+	}
+	return strings.TrimSpace(config.Annotation)
+}
+
+// instanceTypeFromConfig reads the instance_type key written by buildAnnotation.
+func instanceTypeFromConfig(config *types.VirtualMachineConfigInfo) string {
+	if config == nil {
+		return ""
+	}
+	return parseAnnotation(config.Annotation)[instanceTypeFieldKey]
 }
 
 func belongsToCluster(tags map[string]string, clusterName string) bool {
