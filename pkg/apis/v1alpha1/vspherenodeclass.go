@@ -122,8 +122,8 @@ type InstanceType struct {
 	MaxPods string `json:"maxPods,omitempty"`
 	OS      string `json:"os,omitempty"`
 	Arch    string `json:"arch,omitempty"`
-	Zone    string `json:"zone,omitempty"`
-	Region  string `json:"region,omitempty"`
+	Zone    string `json:"zone,omitempty"`   // Deprecated: use options flags instead
+	Region  string `json:"region,omitempty"` // Deprecated: use options flags instead
 }
 
 func (nc *VsphereNodeClass) Hash() string {

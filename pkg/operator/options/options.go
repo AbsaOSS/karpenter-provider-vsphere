@@ -28,6 +28,8 @@ type Options struct {
 	VsphereInsecure bool
 	KubeDistro      string
 	KubeVersion     string
+	Zone            string
+	Region          string
 }
 
 type optionsKey struct{}
@@ -43,6 +45,8 @@ func (o *Options) AddFlags(fs *coreoptions.FlagSet) {
 	fs.StringVar(&o.VsphereFolder, "vsphere-path", env.WithDefaultString("VSPHERE_FOLDER", ""), "[REQUIRED] The vSphere path to use for the vSphere provider")
 	fs.StringVar(&o.VsphereDC, "vsphere-dc", env.WithDefaultString("VSPHERE_DC", ""), "[REQUIRED] The vSphere DC to use for the vSphere provider")
 	fs.BoolVar(&o.VsphereInsecure, "vsphere-insecure", env.WithDefaultBool("GOVC_INSECURE", false), "[REQUIRED] The vSphere insecure flag to use for the vSphere provider")
+	fs.StringVar(&o.Zone, "zone", env.WithDefaultString("ZONE", ""), "The topology zone to advertise for per-zone provisioning")
+	fs.StringVar(&o.Region, "region", env.WithDefaultString("REGION", ""), "The topology region to advertise for per-region provisioning")
 }
 
 func (o *Options) ToContext(ctx context.Context) context.Context {
