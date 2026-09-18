@@ -1,15 +1,19 @@
 package instance
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/operator/options"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	karpv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 	corecloudprovider "sigs.k8s.io/karpenter/pkg/cloudprovider"
+	"sigs.k8s.io/karpenter/pkg/scheduling"
 
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
 	"github.com/stretchr/testify/require"
@@ -70,12 +74,37 @@ func TestImageFromAnnotation(t *testing.T) {
 	}{
 		{name: "nil config", want: ImageNotFound},
 		{name: "empty annotation", config: &types.VirtualMachineConfigInfo{}, want: ""},
-		{name: "prefixed image path", config: &types.VirtualMachineConfigInfo{Annotation: "cloned_from:/dc0/vm/flatcar-template"}, want: "/dc0/vm/flatcar-template"},
-		{name: "prefixed image new key", config: &types.VirtualMachineConfigInfo{Annotation: "cloned_from: /dc0/vm/flatcar-template"}, want: "/dc0/vm/flatcar-template"},
+		{name: "legacy format without space", config: &types.VirtualMachineConfigInfo{Annotation: "cloned_from:/dc0/vm/flatcar-template"}, want: "/dc0/vm/flatcar-template"},
+		{name: "legacy format with space", config: &types.VirtualMachineConfigInfo{Annotation: "cloned_from: /dc0/vm/flatcar-template"}, want: "/dc0/vm/flatcar-template"},
+		{name: "yaml format with both keys", config: &types.VirtualMachineConfigInfo{Annotation: "cloned_from: /DC0/vm/flatcar-template\ninstanceType: s-2x\n"}, want: "/DC0/vm/flatcar-template"},
+		{name: "yaml format reordered keys", config: &types.VirtualMachineConfigInfo{Annotation: "instanceType: s-2x\ncloned_from: /DC0/vm/flatcar-template\n"}, want: "/DC0/vm/flatcar-template"},
+		{name: "yaml with only cloned_from", config: &types.VirtualMachineConfigInfo{Annotation: "cloned_from: /dc0/vm/flatcar-template\n"}, want: "/dc0/vm/flatcar-template"},
+		{name: "no recognized key falls back to raw string", config: &types.VirtualMachineConfigInfo{Annotation: "/dc0/vm/flatcar-template"}, want: "/dc0/vm/flatcar-template"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			require.Equal(t, test.want, imageFromConfig(test.config))
+		})
+	}
+}
+
+func TestInstanceTypeFromAnnotation(t *testing.T) {
+	tests := []struct {
+		name   string
+		config *types.VirtualMachineConfigInfo
+		want   string
+	}{
+		{name: "nil config", want: ""},
+		{name: "empty annotation", config: &types.VirtualMachineConfigInfo{}, want: ""},
+		{name: "legacy format, no instance_type key without space", config: &types.VirtualMachineConfigInfo{Annotation: "cloned_from:/dc0/vm/flatcar-template"}, want: ""},
+		{name: "legacy format, no instance_type key", config: &types.VirtualMachineConfigInfo{Annotation: "cloned_from: /dc0/vm/flatcar-template"}, want: ""},
+		{name: "yaml format", config: &types.VirtualMachineConfigInfo{Annotation: "cloned_from: /DC0/vm/flatcar-template\ninstanceType: s-2x\n"}, want: "s-2x"},
+		{name: "yaml format reordered", config: &types.VirtualMachineConfigInfo{Annotation: "instanceType: s-2x\ncloned_from: /DC0/vm/flatcar-template\n"}, want: "s-2x"},
+		{name: "yaml with only instanceType", config: &types.VirtualMachineConfigInfo{Annotation: "instanceType: m-4x\n"}, want: "m-4x"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.want, instanceTypeFromConfig(test.config))
 		})
 	}
 }
@@ -96,4 +125,230 @@ func TestBelongsToCluster(t *testing.T) {
 			require.Equal(t, test.want, belongsToCluster(test.tags, test.clusterName))
 		})
 	}
+}
+
+// TestSelectInstanceType_SelectsByPriceFirst verifies that when instance types
+// have different prices, the cheapest option is selected regardless of family.
+// Using KwoK pricing with valid sizes [2, 4, 9, 16, 32]:
+// - c-2x: 1 CPU, 2 GiB, price = 0.27 (cheapest)
+// - s-2x: 1 CPU, 4 GiB, price = 0.29
+// - m-2x: 1 CPU, 8 GiB, price = 0.33 (most expensive)
+func TestSelectInstanceType_SelectsByPriceFirst(t *testing.T) {
+	zone := "us-west-2a"
+	ctx := context.Background()
+	ctx = options.ToContext(ctx, &options.Options{Zone: zone})
+
+	// Compute type (c-2x) is cheapest, so it should be selected even though
+	// memory type (m-2x) might be more suitable for memory-optimized workload
+	computeType := createInstanceType("c-2x", "1", "2Gi", zone)  // Cheapest: 0.27
+	standardType := createInstanceType("s-2x", "1", "4Gi", zone) // Mid: 0.29
+	memoryType := createInstanceType("m-2x", "1", "8Gi", zone)   // Most expensive: 0.33
+
+	provider := &DefaultProvider{}
+	selected, err := provider.selectInstanceType(ctx, []*corecloudprovider.InstanceType{
+		memoryType,
+		standardType,
+		computeType,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "c-2x", selected.Name)
+}
+
+func createInstanceType(name string, cpuStr, memStr string, zone string) *corecloudprovider.InstanceType {
+	cpu, _ := resource.ParseQuantity(cpuStr)
+	mem, _ := resource.ParseQuantity(memStr)
+	cpuVal := float64(cpu.MilliValue()) / 1000
+	memVal := float64(mem.Value()) / (1024 * 1024 * 1024)
+	price := (cpuVal * 0.25) + (memVal * 0.01)
+
+	return &corecloudprovider.InstanceType{
+		Name: name,
+		Capacity: corev1.ResourceList{
+			corev1.ResourceCPU:    cpu,
+			corev1.ResourceMemory: mem,
+		},
+		Offerings: []*corecloudprovider.Offering{
+			{
+				Available: true,
+				Price:     price,
+				Requirements: scheduling.NewRequirements(
+					scheduling.NewRequirement(corev1.LabelTopologyZone, corev1.NodeSelectorOpIn, zone),
+					scheduling.NewRequirement(karpv1.CapacityTypeLabelKey, corev1.NodeSelectorOpIn, karpv1.CapacityTypeOnDemand),
+				),
+			},
+		},
+	}
+}
+
+// TestSelectInstanceType_SelectsLowestCPUWhenPriceEqual verifies the tie-breaking
+// logic: when prices are equal, lower CPU count wins.
+// Using fixed prices to test the CPU tiebreaker when prices are identical.
+// Using KwoK valid sizes [2, 4, 9, 16, 32]:
+// - s-2x: 1 CPU (lowest)
+// - m-4x: 2 CPU
+// - c-9x: 4 CPU (highest)
+func TestSelectInstanceType_SelectsLowestCPUWhenPriceEqual(t *testing.T) {
+	zone := "us-west-2a"
+	ctx := context.Background()
+	ctx = options.ToContext(ctx, &options.Options{Zone: zone})
+
+	// All have same fixed price, but different CPU counts
+	// s-2x has lowest CPU (1), so it should be selected
+	type1 := createInstanceTypeWithFixedPrice("s-2x", "1", "4Gi", 100.0, zone)  // Lowest CPU: 1
+	type2 := createInstanceTypeWithFixedPrice("m-4x", "2", "16Gi", 100.0, zone) // Mid CPU: 2
+	type3 := createInstanceTypeWithFixedPrice("c-9x", "4", "8Gi", 100.0, zone)  // Highest CPU: 4
+
+	provider := &DefaultProvider{}
+	selected, err := provider.selectInstanceType(ctx, []*corecloudprovider.InstanceType{
+		type3,
+		type1,
+		type2,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "s-2x", selected.Name)
+}
+
+func createInstanceTypeWithFixedPrice(name string, cpuStr, memStr string, price float64, zone string) *corecloudprovider.InstanceType {
+	cpu, _ := resource.ParseQuantity(cpuStr)
+	mem, _ := resource.ParseQuantity(memStr)
+
+	return &corecloudprovider.InstanceType{
+		Name: name,
+		Capacity: corev1.ResourceList{
+			corev1.ResourceCPU:    cpu,
+			corev1.ResourceMemory: mem,
+		},
+		Offerings: []*corecloudprovider.Offering{
+			{
+				Available: true,
+				Price:     price,
+				Requirements: scheduling.NewRequirements(
+					scheduling.NewRequirement(corev1.LabelTopologyZone, corev1.NodeSelectorOpIn, zone),
+					scheduling.NewRequirement(karpv1.CapacityTypeLabelKey, corev1.NodeSelectorOpIn, karpv1.CapacityTypeOnDemand),
+				),
+			},
+		},
+	}
+}
+
+// TestSelectInstanceType_SelectsLowestMemoryWhenCPUEqual verifies the next tie-breaker:
+// when prices and CPU counts are equal, lower memory count wins.
+// Using fixed prices to test the memory tiebreaker logic.
+// Using KwoK valid sizes [2, 4, 9, 16, 32] with 2 CPU (size-4x):
+// - c-4x: 2 CPU, 4 GiB (lowest memory)
+// - s-4x: 2 CPU, 8 GiB
+// - m-4x: 2 CPU, 16 GiB (highest memory)
+func TestSelectInstanceType_SelectsLowestMemoryWhenCPUEqual(t *testing.T) {
+	zone := "us-west-2a"
+	ctx := context.Background()
+	ctx = options.ToContext(ctx, &options.Options{Zone: zone})
+
+	// Same price and CPU, but different memory
+	// c-4x has lowest memory (4 GiB), so it should be selected
+	type1 := createInstanceTypeWithFixedPrice("c-4x", "2", "4Gi", 100.0, zone)  // Lowest memory: 4 GiB
+	type2 := createInstanceTypeWithFixedPrice("s-4x", "2", "8Gi", 100.0, zone)  // Mid memory: 8 GiB
+	type3 := createInstanceTypeWithFixedPrice("m-4x", "2", "16Gi", 100.0, zone) // Highest memory: 16 GiB
+
+	provider := &DefaultProvider{}
+	selected, err := provider.selectInstanceType(ctx, []*corecloudprovider.InstanceType{
+		type3,
+		type1,
+		type2,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "c-4x", selected.Name)
+}
+
+// TestSelectInstanceType_FiltersOutUnavailableZones verifies that instance types
+// without offerings in the requested zone are filtered out.
+// Using KwoK pricing model with valid sizes [2, 4, 9, 16, 32].
+func TestSelectInstanceType_FiltersOutUnavailableZones(t *testing.T) {
+	zone := "us-west-2a"
+	ctx := context.Background()
+	ctx = options.ToContext(ctx, &options.Options{Zone: zone})
+
+	// Instance in correct zone
+	correctZone := &corecloudprovider.InstanceType{
+		Name: "m-2x",
+		Capacity: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("1"),
+			corev1.ResourceMemory: resource.MustParse("8Gi"),
+		},
+		Offerings: []*corecloudprovider.Offering{
+			{
+				Available: true,
+				Price:     0.33, // (1*0.25)+(8*0.01)
+				Requirements: scheduling.NewRequirements(
+					scheduling.NewRequirement(corev1.LabelTopologyZone, corev1.NodeSelectorOpIn, zone),
+					scheduling.NewRequirement(karpv1.CapacityTypeLabelKey, corev1.NodeSelectorOpIn, karpv1.CapacityTypeOnDemand),
+				),
+			},
+		},
+	}
+
+	// Instance in different zone
+	wrongZone := &corecloudprovider.InstanceType{
+		Name: "c-2x",
+		Capacity: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("1"),
+			corev1.ResourceMemory: resource.MustParse("2Gi"),
+		},
+		Offerings: []*corecloudprovider.Offering{
+			{
+				Available: true,
+				Price:     0.27, // (1*0.25)+(2*0.01)
+				Requirements: scheduling.NewRequirements(
+					scheduling.NewRequirement(corev1.LabelTopologyZone, corev1.NodeSelectorOpIn, "us-west-2b"),
+					scheduling.NewRequirement(karpv1.CapacityTypeLabelKey, corev1.NodeSelectorOpIn, karpv1.CapacityTypeOnDemand),
+				),
+			},
+		},
+	}
+
+	provider := &DefaultProvider{}
+	selected, err := provider.selectInstanceType(ctx, []*corecloudprovider.InstanceType{
+		wrongZone,
+		correctZone,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "m-2x", selected.Name)
+}
+
+// TestSelectInstanceType_ErrorWhenNoAvailableTypes verifies that an error is returned
+// when no instance types have offerings available in the requested zone.
+// Using KwoK valid sizes [2, 4, 9, 16, 32].
+func TestSelectInstanceType_ErrorWhenNoAvailableTypes(t *testing.T) {
+	zone := "us-west-2a"
+	ctx := context.Background()
+	ctx = options.ToContext(ctx, &options.Options{Zone: zone})
+
+	// Instance only available in different zone
+	wrongZone := &corecloudprovider.InstanceType{
+		Name: "m-2x",
+		Capacity: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("1"),
+			corev1.ResourceMemory: resource.MustParse("8Gi"),
+		},
+		Offerings: []*corecloudprovider.Offering{
+			{
+				Available: true,
+				Price:     0.33, // (1*0.25)+(8*0.01)
+				Requirements: scheduling.NewRequirements(
+					scheduling.NewRequirement(corev1.LabelTopologyZone, corev1.NodeSelectorOpIn, "us-west-2b"),
+					scheduling.NewRequirement(karpv1.CapacityTypeLabelKey, corev1.NodeSelectorOpIn, karpv1.CapacityTypeOnDemand),
+				),
+			},
+		},
+	}
+
+	provider := &DefaultProvider{}
+	_, err := provider.selectInstanceType(ctx, []*corecloudprovider.InstanceType{wrongZone})
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no instance types have an available on-demand offering")
+	require.Contains(t, err.Error(), zone)
 }

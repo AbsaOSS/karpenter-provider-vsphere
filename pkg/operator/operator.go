@@ -12,6 +12,7 @@ import (
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/finder"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/instance"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/kubernetesversion"
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/kwok"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/vsphereclient"
 
 	"github.com/patrickmn/go-cache"
@@ -31,22 +32,32 @@ type Operator struct {
 	KubernetesVersionProvider    kubernetesversion.KubernetesVersionProvider
 	InstanceProvider             instance.Provider
 	FinderProvider               *finder.Provider
+	InstanceProfilesProvider     kwok.KwokInstanceTypesProvider
+}
+
+func NewInClusterClient() kubernetes.Interface {
+	inClusterConfig := config.GetConfigOrDie()
+	return kubernetes.NewForConfigOrDie(inClusterConfig)
 }
 
 func NewOperator(ctx context.Context, operator *operator.Operator) (context.Context, *Operator) {
+	return NewOperatorInt(ctx, operator, NewInClusterClient())
+}
+
+func NewOperatorInt(ctx context.Context, operator *operator.Operator, inClusterClient kubernetes.Interface) (context.Context, *Operator) {
+	optionsFromCtx := options.FromContext(ctx)
+	// lo.Must0(optionsFromCtx.Validate(), "validating operator options")
 	vsClient, err := vsphereclient.NewSession(
 		ctx,
-		options.FromContext(ctx).VsphereEndpoint,
-		options.FromContext(ctx).VsphereUsername,
-		options.FromContext(ctx).VspherePassword,
-		options.FromContext(ctx).VsphereInsecure,
+		optionsFromCtx.VsphereEndpoint,
+		optionsFromCtx.VsphereUsername,
+		optionsFromCtx.VspherePassword,
+		optionsFromCtx.VsphereInsecure,
 	)
 	lo.Must0(err, "creating vsphere session")
 
-	//inClusterConfig := lo.Must(rest.InClusterConfig())
+	// inClusterConfig := lo.Must(rest.InClusterConfig())
 	// for testing purposes load local kubeconfig if available
-	inClusterConfig := config.GetConfigOrDie()
-	inClusterClient := kubernetes.NewForConfigOrDie(inClusterConfig)
 
 	kubernetesVersionProvider := kubernetesversion.NewKubernetesVersionProvider(
 		inClusterClient,
@@ -72,5 +83,6 @@ func NewOperator(ctx context.Context, operator *operator.Operator) (context.Cont
 		InClusterKubernetesInterface: inClusterClient,
 		InstanceProvider:             instanceProvider,
 		FinderProvider:               finderProvider,
+		InstanceProfilesProvider:     &kwok.KwokInstanceTypesStaticProvider{},
 	}
 }

@@ -1,11 +1,13 @@
 package cloudprovider
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/instance"
@@ -42,7 +44,7 @@ func TestInstanceToNodeClaim(t *testing.T) {
 	}
 
 	instanceType := &corecloudprovider.InstanceType{
-		Name: "vsphere-vm.cpu-4.mem-16gb.os-ubuntu",
+		Name: "s-8x",
 		Requirements: scheduling.NewRequirements(
 			scheduling.NewRequirement(
 				corev1.LabelArchStable,
@@ -278,7 +280,7 @@ func TestInstanceToNodeClaimPoweredOff(t *testing.T) {
 	}
 
 	instanceType := &corecloudprovider.InstanceType{
-		Name: "vsphere-vm.cpu-2.mem-4gb.os-ubuntu",
+		Name: "c-4x",
 		Capacity: corev1.ResourceList{
 			corev1.ResourceCPU:    resource.MustParse("2"),
 			corev1.ResourceMemory: resource.MustParse("4Gi"),
@@ -399,7 +401,7 @@ func TestInstanceTypesFromNodeClass(t *testing.T) {
 		offerings := instanceTypes[0].Offerings
 		offering := offerings[0]
 
-		assert.Equal(t, float64(0.0), offering.Price)
+		assert.Equal(t, float64(100.0), offering.Price)
 		assert.True(t, offering.Available)
 	})
 
@@ -466,4 +468,101 @@ func assertResourceQuantity(
 		actual.String(),
 		expectedQuantity.String(),
 	)
+}
+
+func TestResolveInstanceTypes(t *testing.T) {
+	ctx := context.Background()
+
+	// Create mock KWOK instance types
+	mockKwokInstanceTypes := []*corecloudprovider.InstanceType{
+		{
+			Name: "kwok-instance-1",
+			Requirements: scheduling.NewRequirements(
+				scheduling.NewRequirement(corev1.LabelInstanceTypeStable, corev1.NodeSelectorOpIn, "kwok-instance-1"),
+				scheduling.NewRequirement(corev1.LabelArchStable, corev1.NodeSelectorOpIn, "amd64"),
+				scheduling.NewRequirement(corev1.LabelOSStable, corev1.NodeSelectorOpIn, "linux"),
+			),
+			Capacity: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("2"),
+				corev1.ResourceMemory: resource.MustParse("4Gi"),
+				corev1.ResourcePods:   resource.MustParse("110"),
+			},
+			Overhead: &corecloudprovider.InstanceTypeOverhead{},
+			Offerings: []*corecloudprovider.Offering{
+				{
+					Requirements: scheduling.NewRequirements(
+						scheduling.NewRequirement(corev1.LabelTopologyZone, corev1.NodeSelectorOpIn, "zone-a"),
+						scheduling.NewRequirement(karpv1.CapacityTypeLabelKey, corev1.NodeSelectorOpIn, karpv1.CapacityTypeOnDemand),
+					),
+					Available: true,
+				},
+			},
+		},
+	}
+
+	// Mock KWOK provider
+	mockKwokProvider := &mockKwokInstanceTypesProvider{
+		instances: mockKwokInstanceTypes,
+	}
+
+	// Create VsphereNodeClass with instance types
+	nodeClass := &v1alpha1.VsphereNodeClass{
+		Spec: v1alpha1.VsphereNodeClassSpec{
+			DiskSize: 100,
+			InstanceTypes: []v1alpha1.InstanceType{
+				{
+					CPU:     "4",
+					Memory:  "16Gi",
+					MaxPods: "110",
+					OS:      "Linux",
+					Zone:    "zone-a",
+				},
+			},
+		},
+	}
+
+	// Create a simple NodeClaim without explicit requirements
+	// This allows all instance types to pass through the filter
+	nodeClaim := &karpv1.NodeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-claim",
+		},
+		Spec: karpv1.NodeClaimSpec{
+			// No requirements specified - allows all instance types to pass
+		},
+	}
+
+	// Create CloudProvider with mock KWOK provider
+	provider := &CloudProvider{
+		kwokInstanceTypesProvider: mockKwokProvider,
+	}
+
+	// Call resolveInstanceTypes
+	instanceTypes, err := provider.resolveInstanceTypes(ctx, nodeClaim, nodeClass)
+
+	// Assertions
+	require.NoError(t, err)
+	require.NotNil(t, instanceTypes)
+	require.GreaterOrEqual(t, len(instanceTypes), 2,
+		"expected at least 2 instance types (1 from CR, 1 from KWOK)")
+
+	// Extract instance type names for easier assertions
+	names := make([]string, len(instanceTypes))
+	for i, it := range instanceTypes {
+		names[i] = it.Name
+	}
+
+	require.Contains(t, names, "vsphere-vm.cpu-4.mem-16gb.os-linux", "CR-based instance type should be present")
+	require.Contains(t, names, "kwok-instance-1", "KWOK instance type should be present")
+	assert.Contains(t, names, "vsphere-vm.cpu-4.mem-16gb.os-linux", "CR-based instance type should be in the list")
+	assert.Contains(t, names, "kwok-instance-1", "KWOK instance type should be in the list")
+}
+
+// mockKwokInstanceTypesProvider is a mock implementation of kwok.KwokInstanceTypesProvider
+type mockKwokInstanceTypesProvider struct {
+	instances []*corecloudprovider.InstanceType
+}
+
+func (m *mockKwokInstanceTypesProvider) List(ctx context.Context, diskSize int64) ([]*corecloudprovider.InstanceType, error) {
+	return m.instances, nil
 }

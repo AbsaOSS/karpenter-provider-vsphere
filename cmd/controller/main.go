@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/cloudprovider"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/controllers"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/operator"
@@ -26,6 +27,7 @@ func main() {
 	vsphereCloudProvider := cloudprovider.New(
 		op.InstanceProvider,
 		op.GetClient(),
+		op.InstanceProfilesProvider,
 	)
 	cloudProvider := metrics.Decorate(vsphereCloudProvider)
 	undecoratedCloudProvider := metrics.Decorate(vsphereCloudProvider)
