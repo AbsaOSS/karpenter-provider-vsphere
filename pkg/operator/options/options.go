@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 
+	"go.uber.org/multierr"
 	coreoptions "sigs.k8s.io/karpenter/pkg/operator/options"
 	"sigs.k8s.io/karpenter/pkg/utils/env"
 )
@@ -28,6 +29,8 @@ type Options struct {
 	VsphereInsecure bool
 	KubeDistro      string
 	KubeVersion     string
+	Zone            string
+	Region          string
 }
 
 type optionsKey struct{}
@@ -43,6 +46,8 @@ func (o *Options) AddFlags(fs *coreoptions.FlagSet) {
 	fs.StringVar(&o.VsphereFolder, "vsphere-path", env.WithDefaultString("VSPHERE_FOLDER", ""), "[REQUIRED] The vSphere path to use for the vSphere provider")
 	fs.StringVar(&o.VsphereDC, "vsphere-dc", env.WithDefaultString("VSPHERE_DC", ""), "[REQUIRED] The vSphere DC to use for the vSphere provider")
 	fs.BoolVar(&o.VsphereInsecure, "vsphere-insecure", env.WithDefaultBool("GOVC_INSECURE", false), "[REQUIRED] The vSphere insecure flag to use for the vSphere provider")
+	fs.StringVar(&o.Zone, "zone", env.WithDefaultString("ZONE", ""), "[REQUIRED] The topology zone to advertise for per-zone provisioning")
+	fs.StringVar(&o.Region, "region", env.WithDefaultString("REGION", ""), "[REQUIRED] The topology region to advertise for per-region provisioning")
 }
 
 func (o *Options) ToContext(ctx context.Context) context.Context {
@@ -86,9 +91,76 @@ func (o *Options) String() string {
 }
 
 func (o *Options) Validate() error {
-	if o.ClusterEndpoint == "" {
-		return fmt.Errorf("--cluster-endpoint is required")
+	return multierr.Combine(
+		o.validateKubeDistro(),
+		o.validateClusterEndpoint(),
+		o.validateVsphereEndpoint(),
+		o.validateVSphereUsername(),
+		o.validateVSpherePassword(),
+		o.validateVSphereDC(),
+		o.validateClusterName(),
+		o.validateZone(),
+		o.validateRegion(),
+	)
+}
+
+func (o *Options) validateRegion() error {
+	if len(o.Region) == 0 {
+		return errors.New("region is required")
 	}
+	return nil
+}
+
+func (o *Options) validateZone() error {
+	if len(o.Zone) == 0 {
+		return errors.New("zone is required")
+	}
+	return nil
+}
+
+func (o *Options) validateClusterName() error {
+	if len(o.ClusterName) == 0 {
+		return errors.New("cluster-name is required")
+	}
+	return nil
+}
+
+func (o *Options) validateVSphereDC() error {
+	if len(o.VsphereDC) == 0 {
+		return errors.New("vsphere-dc is required")
+	}
+	return nil
+}
+
+func (o *Options) validateVSpherePassword() error {
+	if len(o.VspherePassword) == 0 {
+		return errors.New("vsphere-password is required")
+	}
+	return nil
+}
+
+func (o *Options) validateVSphereUsername() error {
+	if len(o.VsphereUsername) == 0 {
+		return errors.New("vsphere-username is required")
+	}
+	return nil
+}
+
+func (o *Options) validateVsphereEndpoint() error {
+	if len(o.VsphereEndpoint) == 0 {
+		return errors.New("vsphere-endpoint is required")
+	}
+	return nil
+}
+
+func (o *Options) validateClusterEndpoint() error {
+	if len(o.ClusterEndpoint) == 0 {
+		return errors.New("cluster-endpoint is required")
+	}
+	return nil
+}
+
+func (o *Options) validateKubeDistro() error {
 	if o.KubeDistro == "rke2" && o.KubeVersion == "" {
 		return errors.New("--kube-distro option requires --kube-version")
 	}

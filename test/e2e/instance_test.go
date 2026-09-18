@@ -24,6 +24,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	karpv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 	corecloudprovider "sigs.k8s.io/karpenter/pkg/cloudprovider"
+	"sigs.k8s.io/karpenter/pkg/scheduling"
 )
 
 const testClusterName = "test-cluster"
@@ -96,6 +97,8 @@ func setupInstanceProvider(t *testing.T) (*instance.DefaultProvider, *v1alpha1.V
 		JoinToken:       "test-join-token",
 		KubeDistro:      string(v1alpha1.RKE2),
 		KubeVersion:     "v1.30.0",
+		Zone:            "zone-a",
+		Region:          "region-a",
 	})
 
 	return provider, class, ctx
@@ -107,7 +110,17 @@ func testInstanceTypes() []*corecloudprovider.InstanceType {
 			Name: "test-type",
 			Capacity: corev1.ResourceList{
 				corev1.ResourceCPU:    resource.MustParse("2"),
-				corev1.ResourceMemory: resource.MustParse("4Gi"),
+				corev1.ResourceMemory: resource.MustParse("512Mi"), // vcsim's default pool caps memory at 961Mi
+			},
+			Offerings: []*corecloudprovider.Offering{
+				{
+					Available: true,
+					Price:     1.0,
+					Requirements: scheduling.NewRequirements(
+						scheduling.NewRequirement(corev1.LabelTopologyZone, corev1.NodeSelectorOpIn, "zone-a"),
+						scheduling.NewRequirement(karpv1.CapacityTypeLabelKey, corev1.NodeSelectorOpIn, karpv1.CapacityTypeOnDemand),
+					),
+				},
 			},
 		},
 	}
@@ -125,7 +138,7 @@ func testNodeClaim(name string) *karpv1.NodeClaim {
 func TestCreate(t *testing.T) {
 	provider, class, ctx := setupInstanceProvider(t)
 
-	inst, err := provider.Create(ctx, class, testNodeClaim("claim1"), testInstanceTypes())
+	inst, instancetype, err := provider.Create(ctx, class, testNodeClaim("claim1"), testInstanceTypes())
 	require.NoError(t, err)
 	require.NotNil(t, inst)
 
@@ -137,6 +150,7 @@ func TestCreate(t *testing.T) {
 	assert.Equal(t, "default", inst.Tags[karpv1.NodePoolLabelKey])
 	// class.Spec.Tags should be merged in.
 	assert.Equal(t, "zone-a", inst.Tags[corev1.LabelTopologyZone])
+	assert.Equal(t, "test-type", instancetype.Name)
 }
 
 func TestCreate_UsesFirstInstanceType(t *testing.T) {
@@ -150,9 +164,10 @@ func TestCreate_UsesFirstInstanceType(t *testing.T) {
 		},
 	})
 
-	inst, err := provider.Create(ctx, class, testNodeClaim("claim2"), instanceTypes)
+	inst, instancetype, err := provider.Create(ctx, class, testNodeClaim("claim2"), instanceTypes)
 	require.NoError(t, err)
 	assert.Equal(t, "test-type", inst.Type)
+	assert.Equal(t, "test-type", instancetype.Name)
 }
 
 // disk.EnableUUID must be true on cloned VMs, otherwise CSI cannot attach
@@ -183,7 +198,7 @@ func TestCreate_EnablesDiskUUID(t *testing.T) {
 func TestCreate_RKE2UserDataUsesSingularNodeTaintKey(t *testing.T) {
 	provider, class, ctx := setupInstanceProvider(t)
 
-	created, err := provider.Create(ctx, class, testNodeClaim("claim-node-taint"), testInstanceTypes())
+	created, instancetype, err := provider.Create(ctx, class, testNodeClaim("claim-node-taint"), testInstanceTypes())
 	require.NoError(t, err)
 
 	vm, err := provider.Finder.GetVMByID(ctx, created.ID)
@@ -200,6 +215,8 @@ func TestCreate_RKE2UserDataUsesSingularNodeTaintKey(t *testing.T) {
 
 	assert.Contains(t, string(decoded), "node-taint:")
 	assert.NotContains(t, string(decoded), "node-taints:")
+
+	assert.Equal(t, "test-type", instancetype.Name)
 }
 
 func extraConfigValue(extraConfig []types.BaseOptionValue, key string) string {
@@ -222,7 +239,7 @@ func TestCreate_IgnitionUserData(t *testing.T) {
 	provider, class, ctx := setupInstanceProvider(t)
 	class.Spec.UserData.Type = v1alpha1.UserDataTypeIgnition
 
-	created, err := provider.Create(ctx, class, testNodeClaim("claim-ignition"), testInstanceTypes())
+	created, instancetype, err := provider.Create(ctx, class, testNodeClaim("claim-ignition"), testInstanceTypes())
 	require.NoError(t, err)
 
 	vm, err := provider.Finder.GetVMByID(ctx, created.ID)
@@ -251,18 +268,22 @@ func TestCreate_IgnitionUserData(t *testing.T) {
 	units, ok := systemd["units"].([]any)
 	require.True(t, ok, "expected ignition systemd.units to be a list")
 	assert.NotEmpty(t, units, "expected the node-join.service unit to be present")
+
+	assert.Equal(t, "test-type", instancetype.Name)
 }
 
 func TestGet(t *testing.T) {
 	provider, class, ctx := setupInstanceProvider(t)
 
-	created, err := provider.Create(ctx, class, testNodeClaim("claim3"), testInstanceTypes())
+	created, instancetype, err := provider.Create(ctx, class, testNodeClaim("claim3"), testInstanceTypes())
 	require.NoError(t, err)
 
 	got, err := provider.Get(ctx, created.ID)
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.Equal(t, created.ID, got.ID)
+
+	assert.Equal(t, "test-type", instancetype.Name)
 }
 
 func TestGet_NotFound(t *testing.T) {
@@ -275,7 +296,7 @@ func TestGet_NotFound(t *testing.T) {
 func TestList(t *testing.T) {
 	provider, class, ctx := setupInstanceProvider(t)
 
-	created, err := provider.Create(ctx, class, testNodeClaim("claim4"), testInstanceTypes())
+	created, instancetype, err := provider.Create(ctx, class, testNodeClaim("claim4"), testInstanceTypes())
 	require.NoError(t, err)
 
 	instances, err := provider.List(ctx)
@@ -286,12 +307,13 @@ func TestList(t *testing.T) {
 		names = append(names, i.Name)
 	}
 	assert.Contains(t, names, created.Name)
+	assert.Equal(t, "test-type", instancetype.Name)
 }
 
 func TestDelete(t *testing.T) {
 	provider, class, ctx := setupInstanceProvider(t)
 
-	created, err := provider.Create(ctx, class, testNodeClaim("claim5"), testInstanceTypes())
+	created, instancetype, err := provider.Create(ctx, class, testNodeClaim("claim5"), testInstanceTypes())
 	require.NoError(t, err)
 
 	require.NoError(t, provider.Delete(ctx, created.ID))
@@ -304,6 +326,7 @@ func TestDelete(t *testing.T) {
 	for _, i := range instances {
 		assert.NotEqual(t, created.Name, i.Name, "deleted VM should not be listed")
 	}
+	assert.Equal(t, "test-type", instancetype.Name)
 }
 
 func TestDelete_NotFound(t *testing.T) {
@@ -316,7 +339,7 @@ func TestDelete_NotFound(t *testing.T) {
 func TestInstanceProvider_ReAuthenticatesAfterSessionInvalidation(t *testing.T) {
 	provider, class, ctx := setupInstanceProvider(t)
 
-	created, err := provider.Create(ctx, class, testNodeClaim("claim6"), testInstanceTypes())
+	created, instancetype, err := provider.Create(ctx, class, testNodeClaim("claim6"), testInstanceTypes())
 	require.NoError(t, err)
 
 	// Simulate vCenter tearing the session down from underneath us; Create,
@@ -331,8 +354,10 @@ func TestInstanceProvider_ReAuthenticatesAfterSessionInvalidation(t *testing.T) 
 	_, err = provider.Get(ctx, created.ID)
 	require.NoError(t, err, "Get should re-authenticate rather than fail")
 
-	_, err = provider.Create(ctx, class, testNodeClaim("claim7"), testInstanceTypes())
+	_, instancetype, err = provider.Create(ctx, class, testNodeClaim("claim7"), testInstanceTypes())
 	require.NoError(t, err, "Create should re-authenticate rather than fail")
 
 	require.NoError(t, provider.Delete(ctx, created.ID), "Delete should re-authenticate rather than fail")
+
+	assert.Equal(t, "test-type", instancetype.Name)
 }
