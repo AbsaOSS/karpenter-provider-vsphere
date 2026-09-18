@@ -111,6 +111,8 @@ spec:
                       rule: self.all(k, k != '' && self[k] != '')
                 type: object
               instanceTypes:
+                description: |-
+                  // FIXME: remove this, or consider to keep this as a custom type. Certainly, drop region and zone from here
                 items:
                   properties:
                     arch:

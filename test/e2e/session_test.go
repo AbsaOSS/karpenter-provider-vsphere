@@ -11,6 +11,14 @@ import (
 	"github.com/vmware/govmomi/session"
 )
 
+// Session test constants
+const (
+	VimUserAgent      = "karpenter-vsphere"
+	TestErrorEndpoint = "127.0.0.1:1"
+	TestErrorUsername = "user"
+	TestErrorPassword = "pass"
+)
+
 // newTestServer starts an in-process vcsim vCenter (the default VPX model:
 // one datacenter, one cluster with 3 hosts, a resource pool, a network, a
 // datastore and a handful of demo VMs) with TLS enabled, since NewSession
@@ -39,7 +47,7 @@ func TestNewSession(t *testing.T) {
 	assert.NotNil(t, sess.Vim, "expected an authenticated SOAP/vim25 client")
 	assert.NotNil(t, sess.Rest, "expected an authenticated REST client")
 	assert.NotNil(t, sess.Tags, "expected a tags manager wired to the REST client")
-	assert.Equal(t, "karpenter-vsphere", sess.Vim.UserAgent)
+	assert.Equal(t, VimUserAgent, sess.Vim.UserAgent)
 
 	// Both halves of the session should be immediately usable without any
 	// extra login step.
@@ -59,7 +67,7 @@ func TestNewSession_ConnectionError(t *testing.T) {
 	// Nothing listens on this address, so the dial should fail fast and
 	// NewSession should surface that as a wrapped error rather than
 	// hanging or panicking.
-	_, err := vsphereclient.NewSession(ctx, "127.0.0.1:1", "user", "pass", true)
+	_, err := vsphereclient.NewSession(ctx, TestErrorEndpoint, TestErrorUsername, TestErrorPassword, true)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to create vsphere client")
 }
