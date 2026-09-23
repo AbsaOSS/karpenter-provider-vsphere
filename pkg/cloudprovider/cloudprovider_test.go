@@ -1,69 +1,36 @@
 package cloudprovider
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/absaoss/karpenter-provider-vsphere/internal/testutil"
+	"github.com/absaoss/karpenter-provider-vsphere/internal/testutil/instancefixture"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
-	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/instance"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	karpv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
-	corecloudprovider "sigs.k8s.io/karpenter/pkg/cloudprovider"
-	"sigs.k8s.io/karpenter/pkg/scheduling"
 )
 
 func TestInstanceToNodeClaim(t *testing.T) {
-	launchTime := time.Date(
-		2026,
-		time.January,
-		10,
-		12,
-		30,
-		0,
-		0,
-		time.UTC,
-	)
+	launchTime := instancefixture.StandardLaunchTime()
 
-	i := &instance.Instance{
-		ID:         "vm-1234",
-		Name:       "worker-1234",
-		Image:      "ubuntu-2404",
-		State:      "poweredOn",
-		LaunchTime: launchTime,
-		Tags: map[string]string{
-			v1alpha1.ClusterNameTagKey: "test-cluster",
-			corev1.LabelTopologyZone:   "zone-a",
-			karpv1.NodePoolLabelKey:    "default-nodepool",
-		},
-	}
+	i := instancefixture.New().
+		WithID("vm-1234").
+		WithName("worker-1234").
+		WithImage("ubuntu-2404").
+		WithState("poweredOn").
+		WithLaunchTime(launchTime).
+		WithClusterName("test-cluster").
+		WithZone("zone-a").
+		WithNodePool("default-nodepool").
+		Build()
 
-	instanceType := &corecloudprovider.InstanceType{
-		Name: "vsphere-vm.cpu-4.mem-16gb.os-ubuntu",
-		Requirements: scheduling.NewRequirements(
-			scheduling.NewRequirement(
-				corev1.LabelArchStable,
-				corev1.NodeSelectorOpIn,
-				"amd64",
-			),
-			scheduling.NewRequirement(
-				corev1.LabelOSStable,
-				corev1.NodeSelectorOpIn,
-				"linux",
-			),
-		),
-		Capacity: corev1.ResourceList{
-			corev1.ResourceCPU:                      resource.MustParse("4"),
-			corev1.ResourceMemory:                   resource.MustParse("16Gi"),
-			corev1.ResourcePods:                     resource.MustParse("110"),
-			corev1.ResourceEphemeralStorage:         resource.MustParse("100Gi"),
-			corev1.ResourceName("example.com/zero"): resource.MustParse("0"),
-		},
-		Overhead: &corecloudprovider.InstanceTypeOverhead{},
-	}
+	instanceType := testutil.StandardInstanceType8X()
 
 	provider := &CloudProvider{}
 
@@ -255,36 +222,17 @@ func TestInstanceToNodeClaim(t *testing.T) {
 }
 
 func TestInstanceToNodeClaimPoweredOff(t *testing.T) {
-	i := &instance.Instance{
-		ID:    "vm-powered-off",
-		Name:  "worker-powered-off",
-		Image: "ubuntu-2404",
-		State: "powerOff",
-		LaunchTime: time.Date(
-			2026,
-			time.January,
-			10,
-			12,
-			30,
-			0,
-			0,
-			time.UTC,
-		),
-		Tags: map[string]string{
-			v1alpha1.ClusterNameTagKey: "test-cluster",
-			corev1.LabelTopologyZone:   "zone-a",
-			karpv1.NodePoolLabelKey:    "default-nodepool",
-		},
-	}
+	i := instancefixture.New().
+		WithID("vm-powered-off").
+		WithName("worker-powered-off").
+		WithImage("ubuntu-2404").
+		WithState("powerOff").
+		WithClusterName("test-cluster").
+		WithZone("zone-a").
+		WithNodePool("default-nodepool").
+		Build()
 
-	instanceType := &corecloudprovider.InstanceType{
-		Name: "vsphere-vm.cpu-2.mem-4gb.os-ubuntu",
-		Capacity: corev1.ResourceList{
-			corev1.ResourceCPU:    resource.MustParse("2"),
-			corev1.ResourceMemory: resource.MustParse("4Gi"),
-		},
-		Overhead: &corecloudprovider.InstanceTypeOverhead{},
-	}
+	instanceType := testutil.ComputeInstanceType4X()
 
 	provider := &CloudProvider{}
 
@@ -313,27 +261,10 @@ func TestInstanceToNodeClaimPoweredOff(t *testing.T) {
 }
 
 func TestInstanceTypesFromNodeClass(t *testing.T) {
-	nodeClass := &v1alpha1.VsphereNodeClass{
-		Spec: v1alpha1.VsphereNodeClassSpec{
-			DiskSize: 100,
-			InstanceTypes: []v1alpha1.InstanceType{
-				{
-					CPU:     "4",
-					Memory:  "16Gi",
-					MaxPods: "110",
-					Zone:    "zone-a",
-					OS:      "Linux",
-				},
-				{
-					CPU:     "2",
-					Memory:  "8Gi",
-					MaxPods: "55",
-					Zone:    "zone-b",
-					OS:      "linux",
-				},
-			},
-		},
-	}
+	nodeClass := testutil.NewNodeClass().
+		WithSingleInstanceType("4", "16Gi", 110, "zone-a", "Linux").
+		WithInstanceType("2", "8Gi", 55, "zone-b", "linux").
+		Build()
 
 	instanceTypes := instanceTypesFromNodeClass(nodeClass)
 
@@ -399,7 +330,7 @@ func TestInstanceTypesFromNodeClass(t *testing.T) {
 		offerings := instanceTypes[0].Offerings
 		offering := offerings[0]
 
-		assert.Equal(t, float64(0.0), offering.Price)
+		assert.Equal(t, float64(100.0), offering.Price)
 		assert.True(t, offering.Available)
 	})
 
@@ -466,4 +397,44 @@ func assertResourceQuantity(
 		actual.String(),
 		expectedQuantity.String(),
 	)
+}
+
+func TestResolveInstanceTypes(t *testing.T) {
+	ctx := context.Background()
+
+	// Create test data using builders from testutil
+	mockKwokInstanceTypes := testutil.MockKwokInstanceTypesSlice()
+	mockKwokProvider := testutil.NewMockKwokProvider(mockKwokInstanceTypes)
+	nodeClass := testutil.NewNodeClass().Build()
+	nodeClaim := testutil.NewNodeClaim().Build()
+	provider := newTestCloudProvider(mockKwokProvider)
+
+	// Call resolveInstanceTypes
+	instanceTypes, err := provider.resolveInstanceTypes(ctx, nodeClaim, nodeClass)
+
+	// Assertions
+	require.NoError(t, err)
+	require.NotNil(t, instanceTypes)
+	require.GreaterOrEqual(t, len(instanceTypes), 2,
+		"expected at least 2 instance types (1 from CR, 1 from KWOK)")
+
+	// Extract instance type names for easier assertions
+	names := make([]string, len(instanceTypes))
+	for i, it := range instanceTypes {
+		names[i] = it.Name
+	}
+
+	const kwokInstanceTypeName = "c-4x"
+	require.Contains(t, names, "vsphere-vm.cpu-4.mem-16gb.os-linux", "CR-based instance type should be present")
+	require.Contains(t, names, kwokInstanceTypeName, "KWOK instance type should be present")
+	assert.Contains(t, names, "vsphere-vm.cpu-4.mem-16gb.os-linux", "CR-based instance type should be in the list")
+	assert.Contains(t, names, kwokInstanceTypeName, "KWOK instance type should be in the list")
+}
+
+// newTestCloudProvider creates a CloudProvider with the given KWOK provider for testing.
+// This is kept here because CloudProvider fields are private and cannot be directly accessed from testutil.
+func newTestCloudProvider(kwokProvider *testutil.MockKwokInstanceTypesProvider) *CloudProvider {
+	return &CloudProvider{
+		kwokInstanceTypesProvider: kwokProvider,
+	}
 }

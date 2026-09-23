@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/absaoss/karpenter-provider-vsphere/internal/test/vcsim"
+	"github.com/absaoss/karpenter-provider-vsphere/internal/testutil"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/operator/options"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/finder"
@@ -20,13 +21,26 @@ import (
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	karpv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 	corecloudprovider "sigs.k8s.io/karpenter/pkg/cloudprovider"
 )
 
-const testClusterName = "test-cluster"
+// Instance provider test constants
+const (
+	InstanceTestClusterName  = "test-cluster"
+	InstanceTypeName         = "test-type"
+	NodeClassName            = "default"
+	InstanceZoneValue        = "zone-a"
+	InstanceTemplateVMName   = "DC0_H0_VM0"
+	InstancePoolSelectorName = "DC0_C0"
+	InstanceDatastoreName    = "LocalDS_0"
+	InstanceNetworkName      = "VM Network"
+	InstanceRegionValue      = "region-a"
+	InstanceClusterEndpoint  = "https://127.0.0.1:6443"
+	InstanceJoinToken        = "test-join-token"
+	InstanceKubeVersion      = "v1.30.0"
+)
 
 // setupInstanceProvider starts an in-process vcsim vCenter (default VPX
 // model), marks one of its demo VMs as a template, and wires everything up
@@ -56,8 +70,7 @@ func setupInstanceProvider(t *testing.T) (*instance.DefaultProvider, *v1alpha1.V
 	// Use a standalone-host demo VM as our template. It sits outside the
 	// "DC0_C0" resource pool we clone into, which more closely mirrors a
 	// real setup where the template lives in its own place.
-	templateName := "DC0_H0_VM0"
-	templateVM, err := findClient.VirtualMachine(ctx, templateName)
+	templateVM, err := findClient.VirtualMachine(ctx, InstanceTemplateVMName)
 	require.NoError(t, err)
 	state, err := templateVM.PowerState(ctx)
 	require.NoError(t, err)
@@ -68,34 +81,36 @@ func setupInstanceProvider(t *testing.T) (*instance.DefaultProvider, *v1alpha1.V
 	}
 	require.NoError(t, templateVM.MarkAsTemplate(ctx))
 
-	// No sub-folder and ClusterName == testClusterName: newly cloned VMs
+	// No sub-folder and ClusterName == InstanceTestClusterName: newly cloned VMs
 	// land directly in the root "/DC0/vm" folder and are named
-	// "<testClusterName>-karp-<claimName>", so finder.ListVMs' prefix match
+	// "<InstanceTestClusterName>-karp-<claimName>", so finder.ListVMs' prefix match
 	// picks them up without any extra inventory setup.
-	finderProvider := finder.NewDefaultProvider(sess, findClient, dc, "", testClusterName)
+	finderProvider := finder.NewDefaultProvider(sess, findClient, dc, "", InstanceTestClusterName)
 
-	provider := instance.NewDefaultProvider(nil, finderProvider, testClusterName)
+	provider := instance.NewDefaultProvider(nil, finderProvider, InstanceTestClusterName)
 
 	class := &v1alpha1.VsphereNodeClass{
-		ObjectMeta: metav1.ObjectMeta{Name: "default"},
+		ObjectMeta: metav1.ObjectMeta{Name: NodeClassName},
 		Spec: v1alpha1.VsphereNodeClassSpec{
-			PoolSelector:      v1alpha1.ResPoolSelctorTerm{Name: "DC0_C0"},
-			DatastoreSelector: v1alpha1.DatastoreSelectorTerm{Name: "LocalDS_0"},
-			NetworkSelector:   v1alpha1.NetworkSelectorTerm{Name: "VM Network"},
-			ImageSelector:     v1alpha1.ImageSelectorTerm{Pattern: templateName},
+			PoolSelector:      v1alpha1.ResPoolSelctorTerm{Name: InstancePoolSelectorName},
+			DatastoreSelector: v1alpha1.DatastoreSelectorTerm{Name: InstanceDatastoreName},
+			NetworkSelector:   v1alpha1.NetworkSelectorTerm{Name: InstanceNetworkName},
+			ImageSelector:     v1alpha1.ImageSelectorTerm{Pattern: InstanceTemplateVMName},
 			UserData:          v1alpha1.UserData{Type: v1alpha1.UserDataTypeCloudConfig},
 			Tags: map[string]string{
-				"topology.kubernetes.io/zone": "zone-a",
+				"topology.kubernetes.io/zone": InstanceZoneValue,
 			},
 		},
 	}
 
 	ctx = options.ToContext(ctx, &options.Options{
-		ClusterName:     testClusterName,
-		ClusterEndpoint: "https://127.0.0.1:6443",
-		JoinToken:       "test-join-token",
+		ClusterName:     InstanceTestClusterName,
+		ClusterEndpoint: InstanceClusterEndpoint,
+		JoinToken:       InstanceJoinToken,
 		KubeDistro:      string(v1alpha1.RKE2),
-		KubeVersion:     "v1.30.0",
+		KubeVersion:     InstanceKubeVersion,
+		Zone:            InstanceZoneValue,
+		Region:          InstanceRegionValue,
 	})
 
 	return provider, class, ctx
@@ -103,13 +118,14 @@ func setupInstanceProvider(t *testing.T) (*instance.DefaultProvider, *v1alpha1.V
 
 func testInstanceTypes() []*corecloudprovider.InstanceType {
 	return []*corecloudprovider.InstanceType{
-		{
-			Name: "test-type",
-			Capacity: corev1.ResourceList{
-				corev1.ResourceCPU:    resource.MustParse("2"),
-				corev1.ResourceMemory: resource.MustParse("4Gi"),
-			},
-		},
+		testutil.NewInstanceType().
+			WithName(InstanceTypeName).
+			WithCPU("2").
+			WithMemory("512Mi"). // vcsim's default pool caps memory at 961Mi
+			WithZone(InstanceZoneValue).
+			WithOfferingSchedulingCapacityTypeOnDemand().
+			WithPrice(1.0).
+			Build(),
 	}
 }
 
@@ -117,42 +133,45 @@ func testNodeClaim(name string) *karpv1.NodeClaim {
 	return &karpv1.NodeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   name,
-			Labels: map[string]string{karpv1.NodePoolLabelKey: "default"},
+			Labels: map[string]string{karpv1.NodePoolLabelKey: NodeClassName},
 		},
 	}
 }
 
 func TestCreate(t *testing.T) {
+	const expectedState = "poweredOn"
+	const claimName = "claim1"
 	provider, class, ctx := setupInstanceProvider(t)
 
-	inst, err := provider.Create(ctx, class, testNodeClaim("claim1"), testInstanceTypes())
+	inst, instancetype, err := provider.Create(ctx, class, testNodeClaim(claimName), testInstanceTypes())
 	require.NoError(t, err)
 	require.NotNil(t, inst)
 
-	assert.Equal(t, fmt.Sprintf("%s-karp-claim1", testClusterName), inst.Name)
+	assert.Equal(t, fmt.Sprintf("%s-karp-%s", InstanceTestClusterName, claimName), inst.Name)
 	assert.NotEmpty(t, inst.ID, "expected the VM's BIOS UUID to be populated")
-	assert.Equal(t, "poweredOn", inst.State)
-	assert.Equal(t, "test-type", inst.Type)
-	assert.Equal(t, testClusterName, inst.Tags[v1alpha1.ClusterNameTagKey])
-	assert.Equal(t, "default", inst.Tags[karpv1.NodePoolLabelKey])
+	assert.Equal(t, expectedState, inst.State)
+	assert.Equal(t, InstanceTypeName, inst.Type)
+	assert.Equal(t, InstanceTestClusterName, inst.Tags[v1alpha1.ClusterNameTagKey])
+	assert.Equal(t, NodeClassName, inst.Tags[karpv1.NodePoolLabelKey])
 	// class.Spec.Tags should be merged in.
-	assert.Equal(t, "zone-a", inst.Tags[corev1.LabelTopologyZone])
+	assert.Equal(t, InstanceZoneValue, inst.Tags[corev1.LabelTopologyZone])
+	assert.Equal(t, InstanceTypeName, instancetype.Name)
 }
 
 func TestCreate_UsesFirstInstanceType(t *testing.T) {
+	const claimName = "claim2"
 	provider, class, ctx := setupInstanceProvider(t)
 
-	instanceTypes := append(testInstanceTypes(), &corecloudprovider.InstanceType{
-		Name: "second-type",
-		Capacity: corev1.ResourceList{
-			corev1.ResourceCPU:    resource.MustParse("4"),
-			corev1.ResourceMemory: resource.MustParse("8Gi"),
-		},
-	})
+	instanceTypes := append(testInstanceTypes(), testutil.NewInstanceType().
+		WithName("second-type").
+		WithCPU("4").
+		WithMemory("8Gi").
+		Build())
 
-	inst, err := provider.Create(ctx, class, testNodeClaim("claim2"), instanceTypes)
+	inst, instancetype, err := provider.Create(ctx, class, testNodeClaim(claimName), instanceTypes)
 	require.NoError(t, err)
-	assert.Equal(t, "test-type", inst.Type)
+	assert.Equal(t, InstanceTypeName, inst.Type)
+	assert.Equal(t, InstanceTypeName, instancetype.Name)
 }
 
 // disk.EnableUUID must be true on cloned VMs, otherwise CSI cannot attach
@@ -161,12 +180,13 @@ func TestCreate_UsesFirstInstanceType(t *testing.T) {
 // (only a handful of fields are copied over), so this asserts on the
 // generated CloneSpec rather than the round-tripped VM.
 func TestCreate_EnablesDiskUUID(t *testing.T) {
+	const testVMName = "test-vm"
 	provider, class, ctx := setupInstanceProvider(t)
 
 	vmTemplate, err := provider.Finder.ResolveImage(ctx, class.Spec.ImageSelector)
 	require.NoError(t, err)
 
-	spec, err := provider.GenerateVMSpec(ctx, class, "test-vm", vmTemplate, testInstanceTypes()[0])
+	spec, err := provider.GenerateVMSpec(ctx, class, testVMName, vmTemplate, testInstanceTypes()[0])
 	require.NoError(t, err)
 
 	require.NotNil(t, spec.Config.Flags, "expected the clone spec's flags to be set")
@@ -181,25 +201,32 @@ func TestCreate_EnablesDiskUUID(t *testing.T) {
 // vcsim recorded on the cloned VM, since ExtraConfig (unlike Flags) is
 // propagated by vcsim's CloneVMTask.
 func TestCreate_RKE2UserDataUsesSingularNodeTaintKey(t *testing.T) {
+	const claimName = "claim-node-taint"
+	const extraConfigKey = "config.extraConfig"
+	const userdataKey = "guestinfo.userdata"
+	const expectedNodeTaintKey = "node-taint:"
+	const unexpectedNodeTaintKey = "node-taints:"
 	provider, class, ctx := setupInstanceProvider(t)
 
-	created, err := provider.Create(ctx, class, testNodeClaim("claim-node-taint"), testInstanceTypes())
+	created, instancetype, err := provider.Create(ctx, class, testNodeClaim(claimName), testInstanceTypes())
 	require.NoError(t, err)
 
 	vm, err := provider.Finder.GetVMByID(ctx, created.ID)
 	require.NoError(t, err)
 
 	var vmMo mo.VirtualMachine
-	require.NoError(t, vm.Properties(ctx, vm.Reference(), []string{"config.extraConfig"}, &vmMo))
+	require.NoError(t, vm.Properties(ctx, vm.Reference(), []string{extraConfigKey}, &vmMo))
 
-	userData := extraConfigValue(vmMo.Config.ExtraConfig, "guestinfo.userdata")
+	userData := extraConfigValue(vmMo.Config.ExtraConfig, userdataKey)
 	require.NotEmpty(t, userData, "expected guestinfo.userdata to be set on the cloned VM")
 
 	decoded, err := base64.StdEncoding.DecodeString(userData)
 	require.NoError(t, err)
 
-	assert.Contains(t, string(decoded), "node-taint:")
-	assert.NotContains(t, string(decoded), "node-taints:")
+	assert.Contains(t, string(decoded), expectedNodeTaintKey)
+	assert.NotContains(t, string(decoded), unexpectedNodeTaintKey)
+
+	assert.Equal(t, InstanceTypeName, instancetype.Name)
 }
 
 func extraConfigValue(extraConfig []types.BaseOptionValue, key string) string {
@@ -219,19 +246,22 @@ func extraConfigValue(extraConfig []types.BaseOptionValue, key string) string {
 // Ignition and decodes the real guestinfo.ignition.config.data vcsim
 // recorded on the cloned VM.
 func TestCreate_IgnitionUserData(t *testing.T) {
+	const claimName = "claim-ignition"
+	const extraConfigKey = "config.extraConfig"
+	const ignitionDataKey = "guestinfo.ignition.config.data"
 	provider, class, ctx := setupInstanceProvider(t)
 	class.Spec.UserData.Type = v1alpha1.UserDataTypeIgnition
 
-	created, err := provider.Create(ctx, class, testNodeClaim("claim-ignition"), testInstanceTypes())
+	created, instancetype, err := provider.Create(ctx, class, testNodeClaim(claimName), testInstanceTypes())
 	require.NoError(t, err)
 
 	vm, err := provider.Finder.GetVMByID(ctx, created.ID)
 	require.NoError(t, err)
 
 	var vmMo mo.VirtualMachine
-	require.NoError(t, vm.Properties(ctx, vm.Reference(), []string{"config.extraConfig"}, &vmMo))
+	require.NoError(t, vm.Properties(ctx, vm.Reference(), []string{extraConfigKey}, &vmMo))
 
-	ignitionData := extraConfigValue(vmMo.Config.ExtraConfig, "guestinfo.ignition.config.data")
+	ignitionData := extraConfigValue(vmMo.Config.ExtraConfig, ignitionDataKey)
 	require.NotEmpty(t, ignitionData, "expected guestinfo.ignition.config.data to be set on the cloned VM")
 
 	decoded, err := base64.StdEncoding.DecodeString(ignitionData)
@@ -251,18 +281,23 @@ func TestCreate_IgnitionUserData(t *testing.T) {
 	units, ok := systemd["units"].([]any)
 	require.True(t, ok, "expected ignition systemd.units to be a list")
 	assert.NotEmpty(t, units, "expected the node-join.service unit to be present")
+
+	assert.Equal(t, InstanceTypeName, instancetype.Name)
 }
 
 func TestGet(t *testing.T) {
+	const claimName = "claim3"
 	provider, class, ctx := setupInstanceProvider(t)
 
-	created, err := provider.Create(ctx, class, testNodeClaim("claim3"), testInstanceTypes())
+	created, instancetype, err := provider.Create(ctx, class, testNodeClaim(claimName), testInstanceTypes())
 	require.NoError(t, err)
 
 	got, err := provider.Get(ctx, created.ID)
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.Equal(t, created.ID, got.ID)
+
+	assert.Equal(t, InstanceTypeName, instancetype.Name)
 }
 
 func TestGet_NotFound(t *testing.T) {
@@ -273,9 +308,10 @@ func TestGet_NotFound(t *testing.T) {
 }
 
 func TestList(t *testing.T) {
+	const claimName = "claim4"
 	provider, class, ctx := setupInstanceProvider(t)
 
-	created, err := provider.Create(ctx, class, testNodeClaim("claim4"), testInstanceTypes())
+	created, instancetype, err := provider.Create(ctx, class, testNodeClaim(claimName), testInstanceTypes())
 	require.NoError(t, err)
 
 	instances, err := provider.List(ctx)
@@ -286,12 +322,14 @@ func TestList(t *testing.T) {
 		names = append(names, i.Name)
 	}
 	assert.Contains(t, names, created.Name)
+	assert.Equal(t, InstanceTypeName, instancetype.Name)
 }
 
 func TestDelete(t *testing.T) {
+	const claimName = "claim5"
 	provider, class, ctx := setupInstanceProvider(t)
 
-	created, err := provider.Create(ctx, class, testNodeClaim("claim5"), testInstanceTypes())
+	created, instancetype, err := provider.Create(ctx, class, testNodeClaim(claimName), testInstanceTypes())
 	require.NoError(t, err)
 
 	require.NoError(t, provider.Delete(ctx, created.ID))
@@ -304,6 +342,7 @@ func TestDelete(t *testing.T) {
 	for _, i := range instances {
 		assert.NotEqual(t, created.Name, i.Name, "deleted VM should not be listed")
 	}
+	assert.Equal(t, InstanceTypeName, instancetype.Name)
 }
 
 func TestDelete_NotFound(t *testing.T) {
@@ -314,9 +353,11 @@ func TestDelete_NotFound(t *testing.T) {
 }
 
 func TestInstanceProvider_ReAuthenticatesAfterSessionInvalidation(t *testing.T) {
+	const claimName1 = "claim6"
+	const claimName2 = "claim7"
 	provider, class, ctx := setupInstanceProvider(t)
 
-	created, err := provider.Create(ctx, class, testNodeClaim("claim6"), testInstanceTypes())
+	created, instancetype, err := provider.Create(ctx, class, testNodeClaim(claimName1), testInstanceTypes())
 	require.NoError(t, err)
 
 	// Simulate vCenter tearing the session down from underneath us; Create,
@@ -331,8 +372,10 @@ func TestInstanceProvider_ReAuthenticatesAfterSessionInvalidation(t *testing.T) 
 	_, err = provider.Get(ctx, created.ID)
 	require.NoError(t, err, "Get should re-authenticate rather than fail")
 
-	_, err = provider.Create(ctx, class, testNodeClaim("claim7"), testInstanceTypes())
+	_, instancetype, err = provider.Create(ctx, class, testNodeClaim(claimName2), testInstanceTypes())
 	require.NoError(t, err, "Create should re-authenticate rather than fail")
 
 	require.NoError(t, provider.Delete(ctx, created.ID), "Delete should re-authenticate rather than fail")
+
+	assert.Equal(t, InstanceTypeName, instancetype.Name)
 }

@@ -24,6 +24,7 @@
 !README.md
 !LICENSE
 !renovate.json
+!docs/**/*.md
 
 # ...even if they are in subdirectories
 !*/

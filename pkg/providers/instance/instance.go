@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"sort"
 	"strings"
 	"time"
 
@@ -16,9 +17,11 @@ import (
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/finder"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/utils"
+	"github.com/samber/lo"
 	"github.com/vmware/govmomi/object"
 	models "github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
+	"go.yaml.in/yaml/v3"
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	karpv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
@@ -26,9 +29,13 @@ import (
 )
 
 const ImageNotFound = "image_not_found"
+const (
+	clonedFromFieldKey   = "cloned_from"
+	instanceTypeFieldKey = "instanceType"
+)
 
 type Provider interface {
-	Create(context.Context, *v1alpha1.VsphereNodeClass, *karpv1.NodeClaim, []*corecloudprovider.InstanceType) (*Instance, error)
+	Create(context.Context, *v1alpha1.VsphereNodeClass, *karpv1.NodeClaim, []*corecloudprovider.InstanceType) (*Instance, *corecloudprovider.InstanceType, error)
 	Get(context.Context, string) (*Instance, error)
 	List(context.Context) ([]*Instance, error)
 	Delete(context.Context, string) error
@@ -76,7 +83,7 @@ func (p *DefaultProvider) GenerateVMSpec(ctx context.Context, class *v1alpha1.Vs
 				DiskUuidEnabled: &diskEnableUUID,
 			},
 			Name:         name,
-			Annotation:   fmt.Sprintf("cloned_from: %s", image.InventoryPath),
+			Annotation:   buildAnnotation(image.InventoryPath, instanceType.Name),
 			NumCPUs:      int32(instanceType.Capacity.Cpu().Value()),
 			MemoryMB:     utils.InstanceTypeToMegabytes(instanceType.Capacity.Memory()),
 			GuestId:      string(types.VirtualMachineGuestOsIdentifierOtherLinux64Guest), // This should be adjusted based on the OS type in the instance type.
@@ -109,13 +116,16 @@ func (p *DefaultProvider) Create(
 	ctx context.Context,
 	class *v1alpha1.VsphereNodeClass,
 	claim *karpv1.NodeClaim,
-	instanceTypes []*corecloudprovider.InstanceType) (*Instance, error) {
-
+	instanceTypes []*corecloudprovider.InstanceType) (*Instance, *corecloudprovider.InstanceType, error) {
 	if err := p.Finder.Session.EnsureValid(ctx); err != nil {
-		return nil, fmt.Errorf("failed to ensure vsphere session is valid: %w", err)
+		return nil, nil, fmt.Errorf("failed to ensure vsphere session is valid: %w", err)
 	}
 
-	instanceType := instanceTypes[0] // For simplicity, we take the first instance type.
+	instanceType, err := p.selectInstanceType(ctx, instanceTypes)
+	if err != nil {
+		return nil, nil, fmt.Errorf("selecting instance type: %w", err)
+	}
+
 	VMName := GenerateVMName(p.ClusterName, claim.Name)
 	instanceTags := map[string]string{
 		v1alpha1.ClusterNameTagKey:   p.ClusterName,
@@ -148,70 +158,119 @@ func (p *DefaultProvider) Create(
 
 	userData, err := p.GetInitData(workerInitConfig, initType)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	vmTemplate, err := p.Finder.ResolveImage(ctx, class.Spec.ImageSelector)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find VM template: %w", err)
+		return nil, nil, fmt.Errorf("failed to find VM template: %w", err)
 	}
 
 	cloneSpec, err := p.GenerateVMSpec(ctx, class, VMName, vmTemplate, instanceType)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate VM spec: %w", err)
+		return nil, nil, fmt.Errorf("failed to generate VM spec: %w", err)
 	}
 	// add Init data
 	cloneSpec.Config.ExtraConfig = userData
 	vmFolder, err := p.Finder.ResolveFolder(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	vm, err := p.Finder.VMByName(ctx, VMName)
 	if err != nil {
 		if err.(*find.NotFoundError) == nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
 	task, err := vmTemplate.Clone(ctx, vmFolder, VMName, *cloneSpec)
 	if err != nil {
-		return nil, fmt.Errorf("failed to clone VM: %w", err)
+		return nil, nil, fmt.Errorf("failed to clone VM: %w", err)
 	}
 
 	err = task.Wait(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("task failed: %w", err)
+		return nil, nil, fmt.Errorf("task failed: %w", err)
 	}
 
 	vm, err = p.Finder.VMByName(ctx, VMName)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	err = p.Finder.TagInstance(ctx, vm.Reference(), instanceTags)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	creationDate, uuid, err := extractCreationDate(ctx, vm)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	powerOnTask, err := vm.PowerOn(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to power on VM: %w", err)
+		return nil, nil, fmt.Errorf("failed to power on VM: %w", err)
 	}
 	err = powerOnTask.Wait(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("task failed: %w", err)
+		return nil, nil, fmt.Errorf("task failed: %w", err)
 	}
 
 	powerState, err := vm.PowerState(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get power state: %w", err)
+		return nil, nil, fmt.Errorf("failed to get power state: %w", err)
 	}
-	return NewInstance(vm, uuid, vmTemplate.InventoryPath, string(powerState), vm.Name(), *creationDate, instanceTags), err
+	return NewInstance(vm, uuid, vmTemplate.InventoryPath, string(powerState), vm.Name(), *creationDate, instanceTags), instanceType, err
+}
+
+// selectInstanceType picks the single instance type to launch out of the scheduler-provided
+// candidates. Karpenter Core is expected to have already ordered instance types by price, so
+// this is meant as the final, deterministic tie-break among whatever candidates remain
+// compatible with this provider's zone and capacity type - not a re-implementation of
+// Karpenter's scheduling logic.
+func (p *DefaultProvider) selectInstanceType(ctx context.Context, instanceTypes []*corecloudprovider.InstanceType) (*corecloudprovider.InstanceType, error) {
+	zone := options.FromContext(ctx).Zone
+
+	candidates := lo.Filter(instanceTypes, func(it *corecloudprovider.InstanceType, _ int) bool {
+		return len(onDemandOfferingsInZone(it, zone)) > 0
+	})
+	if len(candidates) == 0 {
+		return nil, fmt.Errorf("no instance types have an available on-demand offering in zone %q", zone)
+	}
+
+	sort.Slice(candidates, func(i, j int) bool {
+		return lessCandidate(candidates[i], candidates[j], zone)
+	})
+	return candidates[0], nil
+}
+
+func onDemandOfferingsInZone(it *corecloudprovider.InstanceType, zone string) corecloudprovider.Offerings {
+	return lo.Filter(it.Offerings, func(o *corecloudprovider.Offering, _ int) bool {
+		return o.Available && o.CapacityType() == karpv1.CapacityTypeOnDemand && (zone == "" || o.Zone() == zone)
+	})
+}
+
+func cheapestPrice(it *corecloudprovider.InstanceType, zone string) float64 {
+	cheapest := lo.MinBy(onDemandOfferingsInZone(it, zone), func(a, b *corecloudprovider.Offering) bool {
+		return a.Price < b.Price
+	})
+	return cheapest.Price
+}
+
+// lessCandidate breaks ties on price using lower CPU, then lower memory, then
+// lexicographically smaller name, so the pick is deterministic regardless of input order.
+func lessCandidate(a, b *corecloudprovider.InstanceType, zone string) bool {
+	if pa, pb := cheapestPrice(a, zone), cheapestPrice(b, zone); pa != pb {
+		return pa < pb
+	}
+	if ca, cb := a.Capacity.Cpu().MilliValue(), b.Capacity.Cpu().MilliValue(); ca != cb {
+		return ca < cb
+	}
+	if ma, mb := a.Capacity.Memory().Value(), b.Capacity.Memory().Value(); ma != mb {
+		return ma < mb
+	}
+	return a.Name < b.Name
 }
 
 // getVMConfig
@@ -249,12 +308,54 @@ func getImageFromAnnotation(ctx context.Context, vm *object.VirtualMachine) stri
 	return imageFromConfig(config)
 }
 
+// buildAnnotation renders the VM annotation as a YAML document.
+func buildAnnotation(imagePath, instanceType string) string {
+	doc, err := yaml.Marshal(map[string]string{
+		clonedFromFieldKey:   imagePath,
+		instanceTypeFieldKey: instanceType,
+	})
+	if err != nil {
+		return ""
+	}
+	return string(doc)
+}
+
+// parseAnnotation parses the YAML document written by buildAnnotation into a map.
+// Falls back to lenient parsing for legacy formats like "cloned_from:/path" or "cloned_from: /path".
+func parseAnnotation(annotation string) map[string]string {
+	result := map[string]string{}
+	if err := yaml.Unmarshal([]byte(annotation), &result); err != nil {
+		// Fallback for legacy format: parse "key:value" or "key: value" per line
+		for _, line := range strings.Split(strings.TrimSpace(annotation), "\n") {
+			if line == "" {
+				continue
+			}
+			key, value, found := strings.Cut(line, ":")
+			if !found {
+				continue
+			}
+			result[strings.TrimSpace(key)] = strings.TrimSpace(value)
+		}
+	}
+	return result
+}
+
 func imageFromConfig(config *types.VirtualMachineConfigInfo) string {
 	if config == nil {
 		return ImageNotFound
 	}
-	image := strings.TrimPrefix(config.Annotation, "cloned_from:")
-	return strings.TrimPrefix(image, " ")
+	if image, ok := parseAnnotation(config.Annotation)[clonedFromFieldKey]; ok {
+		return image
+	}
+	return strings.TrimSpace(config.Annotation)
+}
+
+// instanceTypeFromConfig reads the instance_type key written by buildAnnotation.
+func instanceTypeFromConfig(config *types.VirtualMachineConfigInfo) string {
+	if config == nil {
+		return ""
+	}
+	return parseAnnotation(config.Annotation)[instanceTypeFieldKey]
 }
 
 func belongsToCluster(tags map[string]string, clusterName string) bool {
