@@ -2,6 +2,10 @@
 version: '3'
 interval: '1500ms'
 
+vars:
+  KARPENTER_PROVIDER_TAG: instance-kwok
+  CORPORATE_DOCKER_REPO: docker.io/your-corporate-repo/
+
 tasks:
   mocks:
     cmds:
@@ -11,3 +15,9 @@ tasks:
   test:
     cmds:
       - go test -v ./... -coverprofile cover.out
+  build:
+    cmds:
+      - go build ./...
+  publish:
+    cmds:
+      - export KO_DOCKER_REPO=$CORPORATE_DOCKER_REPO && ko build --tags $KARPENTER_PROVIDER_TAG --bare ./cmd/controller
