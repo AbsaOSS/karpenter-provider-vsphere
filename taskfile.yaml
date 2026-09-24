@@ -3,8 +3,8 @@ version: '3'
 interval: '1500ms'
 
 vars:
-  KARPENTER_PROVIDER_TAG: instance-kwok
-  CORPORATE_DOCKER_REPO: docker.io/your-corporate-repo/
+  TAG: instance-kwok
+  REPOSITORY: registry.com/namespace/
 
 tasks:
   mocks:
@@ -20,4 +20,4 @@ tasks:
       - go build ./...
   publish:
     cmds:
-      - export KO_DOCKER_REPO=$CORPORATE_DOCKER_REPO && ko build --tags $KARPENTER_PROVIDER_TAG --bare ./cmd/controller
+      - export KO_DOCKER_REPO=$REPOSITORY && ko build --tags $TAG --bare ./cmd/controller
