@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/operator/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	karpv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 )
 
@@ -344,7 +346,7 @@ func TestEnrichToInstanceType(t *testing.T) {
 		VCPU:   1,
 	}
 
-	instanceType := enrichToInstanceType(profile, "linux", "amd64", 100, "zone-a", "zone-b", 110)
+	instanceType := enrichToInstanceType(profile, "linux", "amd64", 100, "zone-a", "zone-b", 110, nil)
 
 	t.Run("has correct name", func(t *testing.T) {
 		assert.Equal(t, "c-2x", instanceType.Name)
@@ -397,6 +399,23 @@ func TestEnrichToInstanceType(t *testing.T) {
 		assert.True(t, instanceType.Offerings[0].Available)
 	})
 
+	t.Run("with kubelet config, sets Overhead from KubeletConfiguration", func(t *testing.T) {
+		kubeletConfig := &v1alpha1.KubeletConfiguration{
+			KubeReserved: map[string]string{"cpu": "250m", "memory": "128Mi"},
+		}
+
+		it := enrichToInstanceType(profile, "linux", "amd64", 100, "zone-a", "zone-b", 110, kubeletConfig)
+
+		require.NotNil(t, it.Overhead)
+		assert.Equal(t, resource.MustParse("250m"), it.Overhead.KubeReserved[corev1.ResourceCPU])
+		assert.Equal(t, resource.MustParse("128Mi"), it.Overhead.KubeReserved[corev1.ResourceMemory])
+	})
+
+	t.Run("without kubelet config, Overhead is empty", func(t *testing.T) {
+		require.NotNil(t, instanceType.Overhead)
+		assert.Empty(t, instanceType.Overhead.KubeReserved)
+	})
+
 	t.Run("price is calculated correctly", func(t *testing.T) {
 		require.Equal(t, 1, len(instanceType.Offerings))
 		// price = 1*0.25 + 2*0.01 = 0.27
@@ -412,14 +431,14 @@ func TestKwokInstanceTypesStaticProviderList(t *testing.T) {
 		opts1 := &options.Options{Zone: "us-west-1a", Region: "us-west-1"}
 		ctx1 := options.ToContext(context.Background(), opts1)
 
-		instanceTypes1, err := provider.List(ctx1, 50)
+		instanceTypes1, err := provider.List(ctx1, 50, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 15, len(instanceTypes1), "should return 15 instance types (5 sizes * 3 families)")
 
 		opts2 := &options.Options{Zone: "us-west-1b", Region: "us-west-1"}
 		ctx2 := options.ToContext(context.Background(), opts2)
 
-		instanceTypes2, err := provider.List(ctx2, 100)
+		instanceTypes2, err := provider.List(ctx2, 100, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 15, len(instanceTypes2), "should return 15 instance types")
 	})
@@ -428,7 +447,7 @@ func TestKwokInstanceTypesStaticProviderList(t *testing.T) {
 		opts := &options.Options{Zone: "us-west-1c", Region: "us-west-1"}
 		ctx := options.ToContext(context.Background(), opts)
 
-		instanceTypes, err := provider.List(ctx, 50)
+		instanceTypes, err := provider.List(ctx, 50, nil)
 		require.NoError(t, err)
 
 		for _, it := range instanceTypes {

@@ -108,6 +108,12 @@ func (b *NodeClassBuilder) WithMemory(memory string) *NodeClassBuilder {
 	return b
 }
 
+// WithKubelet sets the kubelet configuration overrides on the NodeClass.
+func (b *NodeClassBuilder) WithKubelet(kubelet v1alpha1.KubeletConfiguration) *NodeClassBuilder {
+	b.obj.Spec.Kubelet = kubelet
+	return b
+}
+
 // Build returns the constructed NodeClass.
 func (b *NodeClassBuilder) Build() *v1alpha1.VsphereNodeClass {
 	return b.obj

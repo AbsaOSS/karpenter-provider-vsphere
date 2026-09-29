@@ -3,6 +3,7 @@ package testutil
 import (
 	"context"
 
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
 	corecloudprovider "sigs.k8s.io/karpenter/pkg/cloudprovider"
 )
 
@@ -11,8 +12,8 @@ type MockKwokInstanceTypesProvider struct {
 	instances []*corecloudprovider.InstanceType
 }
 
-// List returns the mock instance types.
-func (m *MockKwokInstanceTypesProvider) List(ctx context.Context, diskSize int64) ([]*corecloudprovider.InstanceType, error) {
+// List returns the mock instance types with kubelet config applied.
+func (m *MockKwokInstanceTypesProvider) List(ctx context.Context, diskSize int64, kubeletConfig *v1alpha1.KubeletConfiguration) ([]*corecloudprovider.InstanceType, error) {
 	return m.instances, nil
 }
 

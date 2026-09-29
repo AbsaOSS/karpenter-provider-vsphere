@@ -96,6 +96,22 @@ type VsphereNodeClassSpec struct {
 	UserData          UserData              `json:"userData,omitempty"`
 	K8sDistro         Distro                `json:"k8SDistro,omitempty"`
 	Tags              map[string]string     `json:"tags,omitempty"`
+	// Kubelet configuration in KubeletConfiguration format that overrides InstanceType overhead
+	// +optional
+	Kubelet KubeletConfiguration `json:"kubelet,omitempty"`
+}
+
+// KubeletConfiguration captures the kubelet config for a NodeClass
+type KubeletConfiguration struct {
+	// kubeReserved is a set of ResourceName=ResourceQuantity pairs for resources reserved for kubernetes system components
+	// +optional
+	KubeReserved map[string]string `json:"kubeReserved,omitempty"`
+	// systemReserved is a set of ResourceName=ResourceQuantity pairs for resources reserved for the OS
+	// +optional
+	SystemReserved map[string]string `json:"systemReserved,omitempty"`
+	// evictionHard is a map of signal names to quantities that define hard eviction thresholds
+	// +optional
+	EvictionHard map[string]string `json:"evictionHard,omitempty"`
 }
 
 type UserDataType string

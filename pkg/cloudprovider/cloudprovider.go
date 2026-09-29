@@ -256,7 +256,7 @@ func (c *CloudProvider) GetInstanceTypes(ctx context.Context, pool *karpv1.NodeP
 
 func (c *CloudProvider) getInstanceTypes(ctx context.Context, nodeClass *v1alpha1.VsphereNodeClass) ([]*cloudprovider.InstanceType, error) {
 	instanceTypesFromNC := instanceTypesFromNodeClass(nodeClass)
-	kwokInstanceTypes, err := c.kwokInstanceTypesProvider.List(ctx, nodeClass.Spec.DiskSize)
+	kwokInstanceTypes, err := c.kwokInstanceTypesProvider.List(ctx, nodeClass.Spec.DiskSize, &nodeClass.Spec.Kubelet)
 	if err != nil {
 		return nil, fmt.Errorf("listing kwok instance types, %w", err)
 	}
@@ -298,6 +298,10 @@ func toCPITypeFormat(cpu, mem, os string) string {
 
 func instanceTypesFromNodeClass(nodeClass *v1alpha1.VsphereNodeClass) []*cloudprovider.InstanceType {
 	instanceTypes := []*cloudprovider.InstanceType{}
+	// Compute overhead from kubelet configuration once for all instance types
+	//TODO: compute kubelet overhead
+	overhead := kwok.ToInstanceTypeOverhead(&nodeClass.Spec.Kubelet)
+
 	for _, t := range nodeClass.Spec.InstanceTypes {
 		os := strings.ToLower(t.OS)
 		typeName := toCPITypeFormat(t.CPU, t.Memory, os)
@@ -314,8 +318,7 @@ func instanceTypesFromNodeClass(nodeClass *v1alpha1.VsphereNodeClass) []*cloudpr
 				corev1.ResourcePods:             resource.MustParse(t.MaxPods),
 				corev1.ResourceEphemeralStorage: resource.MustParse(utils.GiToByteAsString(nodeClass.Spec.DiskSize)),
 			},
-			//TODO: compute kubelet overhead
-			Overhead: &cloudprovider.InstanceTypeOverhead{},
+			Overhead: overhead,
 			Offerings: []*cloudprovider.Offering{
 				{
 					Requirements: scheduling.NewRequirements(
