@@ -5,6 +5,13 @@ interval: '1500ms'
 vars:
   TAG: instance-kwok
   REPOSITORY: registry.com/namespace/
+  KARPENTER_CORE_DIR:
+    sh: go list -m -f '{{ .Dir }}' sigs.k8s.io/karpenter
+  BINARY_FILENAME: karpenter-provider-vsphere
+  KO_DOCKER_REPO: ghcr.io/absaoss/karpenter-provider-vsphere
+  KOCACHE: ~/.ko
+  VERSION:
+    sh: git describe --tags --always | cut -d"v" -f2
 
 tasks:
   mocks:
@@ -21,3 +28,73 @@ tasks:
   publish:
     cmds:
       - export KO_DOCKER_REPO=$REPOSITORY && ko build --tags $TAG --bare ./cmd/controller
+  
+  generate:
+    desc: Generate code (mocks, deepcopy, etc.) and copy CRDs
+    cmds:
+      - go generate ./...
+      - mkdir -p charts/karpenter-crd/templates
+      - cp {{.KARPENTER_CORE_DIR}}/pkg/apis/crds/* charts/karpenter-crd/templates
+  
+  image:
+    desc: Build the Karpenter controller images using ko build
+    cmds:
+      - |
+        CONTROLLER_IMG=$(ko build --bare github.com/absaoss/karpenter-provider-vsphere/cmd/controller)
+        IMG_REPOSITORY=$(echo $CONTROLLER_IMG | cut -d "@" -f 1 | cut -d ":" -f 1)
+        IMG_TAG=$(echo $CONTROLLER_IMG | cut -d "@" -f 1 | cut -d ":" -f 2 -s)
+        IMG_DIGEST=$(echo $CONTROLLER_IMG | cut -d "@" -f 2)
+        echo "Image built: $IMG_REPOSITORY:$IMG_TAG@$IMG_DIGEST"
+    env:
+      KOCACHE: "{{.KOCACHE}}"
+      KO_DOCKER_REPO: "{{.KO_DOCKER_REPO}}"
+      GOFLAGS: "-ldflags=-X=sigs.k8s.io/karpenter/pkg/operator.Version={{.VERSION}}"
+  
+  binary:
+    desc: Build the Karpenter controller binary using go build
+    cmds:
+      - go build -ldflags="-X=sigs.k8s.io/karpenter/pkg/operator.Version={{.VERSION}}" -o {{.BINARY_FILENAME}} ./cmd/controller/...
+      - 'echo "Binary built: {{.BINARY_FILENAME}}"'
+  
+  "debug:vscode:gen":
+    desc: Generate .vscode/launch.json for Go debugging
+    cmds:
+      - mkdir -p .vscode
+      - |
+        cat > .vscode/launch.json << 'EOF'
+        {
+            "version": "0.2.0",
+            "configurations": [
+                {
+                    "name": "Launch controller",
+                    "type": "go",
+                    "request": "launch",
+                    "mode": "auto",
+                    "program": "${workspaceFolder}/cmd/controller",
+                    "cwd": "${workspaceFolder}",
+                    "env": {
+                        "CLUSTER_NAME": "",
+                        "CLUSTER_ENDPOINT": "",
+                        "JOIN_TOKEN": "",
+                        "KUBE_DISTRO": "",
+                        "GOVC_URL": "",
+                        "GOVC_USERNAME": "",
+                        "GOVC_PASSWORD": "",
+                        "VSPHERE_FOLDER": "",
+                        "VSPHERE_DC": "",
+                        "GOVC_INSECURE": "",
+                        "KUBECONFIG": "{{env "HOME"}}/.kube/testcluster.yaml",
+                        "LOG_OUTPUT_PATHS": "stdout",
+                        "LOG_ERROR_OUTPUT_PATHS": "stderr",
+                        "HEALTH_PROBE_PORT": "8081",
+                        "METRICS_PORT": "8080",
+                        "PREFERENCE_POLICY": "Respect"
+                    },
+                    "args": [
+                        "-leader-election-namespace=karpenter"
+                    ]
+                }
+            ]
+        }
+        EOF
+      - echo "Generated .vscode/launch.json"
