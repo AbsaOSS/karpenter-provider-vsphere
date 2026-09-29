@@ -4,6 +4,20 @@ Karpenter provider for VMWare Vsphere
 
 # !!!Early alpha - NOT for Production use!!!
 
+## About
+This repository is intended to run together with [cloud-provider-vsphere](https://github.com/AbsaOSS/cloud-provider-vsphere) to provide a complete Karpenter implementation for vSphere environments.
+
+## Description
+This is a Karpenter provider for VMware vSphere that enables automatic node provisioning and scaling for Kubernetes clusters running on vSphere infrastructure. It allows you to dynamically provision virtual machines as Kubernetes nodes based on workload requirements, reducing the need for manual infrastructure management and optimizing resource utilization.
+
+Key capabilities:
+- Automatic VM provisioning based on pod scheduling requirements
+- Integration with vSphere resources (datastores, networks, compute pools)
+- Support for multiple Kubernetes distributions (RKE2, kubeadm)
+- Flexible node templating via VsphereNodeClass API
+- Tag-based resource discovery and VM management
+- Custom user data support (cloud-config and ignition formats)
+
 # Required flags
 
 | Flag             | Environment variable | Required |
