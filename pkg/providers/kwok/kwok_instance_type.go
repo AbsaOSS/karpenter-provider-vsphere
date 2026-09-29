@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/operator/options"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
@@ -62,7 +63,7 @@ func (p instanceProfile) price() float64 {
 }
 
 type KwokInstanceTypesProvider interface {
-	List(ctx context.Context, diskSize int64) ([]*cloudprovider.InstanceType, error)
+	List(ctx context.Context, diskSize int64, kubeletConfig *v1alpha1.KubeletConfiguration) ([]*cloudprovider.InstanceType, error)
 }
 
 func (p instanceProfile) memGiB() int {
@@ -100,12 +101,12 @@ func getProfilesCatalog() map[string]instanceProfile {
 // Catalog contains all supported instance profiles.
 var instanceProfilesCatalog = getProfilesCatalog()
 
-func (r KwokInstanceTypesStaticProvider) List(ctx context.Context, diskSize int64) ([]*cloudprovider.InstanceType, error) {
+func (r KwokInstanceTypesStaticProvider) List(ctx context.Context, diskSize int64, kubeletConfig *v1alpha1.KubeletConfiguration) ([]*cloudprovider.InstanceType, error) {
 	zone, region := getZoneAndRegionFromContext(ctx)
 	result := make([]*cloudprovider.InstanceType, 0, len(instanceProfilesCatalog))
 	for _, profile := range instanceProfilesCatalog {
 		// TODO: specify os and resourcePods instead of hardcoding them
-		result = append(result, enrichToInstanceType(&profile, linuxOS, amd64Architecture, diskSize, zone, region, maxPods))
+		result = append(result, enrichToInstanceType(&profile, linuxOS, amd64Architecture, diskSize, zone, region, maxPods, kubeletConfig))
 	}
 	return result, nil
 }
@@ -119,7 +120,9 @@ func getZoneAndRegionFromContext(ctx context.Context) (string, string) {
 	return zone, region
 }
 
-func enrichToInstanceType(profile *instanceProfile, os string, arch string, diskSize int64, zone string, region string, resourcePods int) *cloudprovider.InstanceType {
+func enrichToInstanceType(profile *instanceProfile, os string, arch string, diskSize int64, zone string, region string, resourcePods int, kubeletConfig *v1alpha1.KubeletConfiguration) *cloudprovider.InstanceType {
+	//TODO: compute kubelet overhead
+	overhead := ToInstanceTypeOverhead(kubeletConfig)
 	return &cloudprovider.InstanceType{
 		Name: profile.name(),
 		Requirements: scheduling.NewRequirements(
@@ -133,8 +136,7 @@ func enrichToInstanceType(profile *instanceProfile, os string, arch string, disk
 			corev1.ResourcePods:             resource.MustParse(fmt.Sprintf("%d", resourcePods)),
 			corev1.ResourceEphemeralStorage: resource.MustParse(utils.GiToByteAsString(diskSize)),
 		},
-		//TODO: compute kubelet overhead
-		Overhead: &cloudprovider.InstanceTypeOverhead{},
+		Overhead: overhead,
 		Offerings: []*cloudprovider.Offering{
 			{
 				Requirements: scheduling.NewRequirements(

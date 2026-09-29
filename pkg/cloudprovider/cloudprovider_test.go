@@ -371,6 +371,28 @@ func TestInstanceTypesFromNodeClass(t *testing.T) {
 	})
 }
 
+func TestInstanceTypesFromNodeClassWithKubelet(t *testing.T) {
+	nodeClass := testutil.NewNodeClass().
+		WithSingleInstanceType("4", "16Gi", 110, "zone-a", "linux").
+		WithKubelet(v1alpha1.KubeletConfiguration{
+			KubeReserved:   map[string]string{"cpu": "250m", "memory": "128Mi"},
+			SystemReserved: map[string]string{"cpu": "150m"},
+			EvictionHard:   map[string]string{"memory.available": "100Mi"},
+		}).
+		Build()
+
+	instanceTypes := instanceTypesFromNodeClass(nodeClass)
+
+	require.Len(t, instanceTypes, 1)
+	overhead := instanceTypes[0].Overhead
+	require.NotNil(t, overhead)
+
+	assertResourceQuantity(t, overhead.KubeReserved, corev1.ResourceCPU, "250m")
+	assertResourceQuantity(t, overhead.KubeReserved, corev1.ResourceMemory, "128Mi")
+	assertResourceQuantity(t, overhead.SystemReserved, corev1.ResourceCPU, "150m")
+	assertResourceQuantity(t, overhead.EvictionThreshold, corev1.ResourceMemory, "100Mi")
+}
+
 func assertResourceQuantity(
 	t *testing.T,
 	resourceList corev1.ResourceList,

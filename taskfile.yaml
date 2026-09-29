@@ -6,7 +6,7 @@ vars:
   TAG: instance-kwok
   REPOSITORY: registry.com/namespace/
   KARPENTER_CORE_DIR:
-    sh: go list -m -f '{{ .Dir }}' sigs.k8s.io/karpenter
+    sh: go list -m -f '{{"{{"}} .Dir {{"}}"}}' sigs.k8s.io/karpenter
   BINARY_FILENAME: karpenter-provider-vsphere
   KO_DOCKER_REPO: ghcr.io/absaoss/karpenter-provider-vsphere
   KOCACHE: ~/.ko
@@ -33,8 +33,14 @@ tasks:
     desc: Generate code (mocks, deepcopy, etc.) and copy CRDs
     cmds:
       - go generate ./...
-      - mkdir -p charts/karpenter-crd/templates
-      - cp {{.KARPENTER_CORE_DIR}}/pkg/apis/crds/* charts/karpenter-crd/templates
+      - mkdir -p charts/karpenter-crd/templates charts/karpenter/crds
+      - cp -f {{.KARPENTER_CORE_DIR}}/pkg/apis/crds/* charts/karpenter/crds/
+      - cp -f pkg/apis/crds/karpenter.vsphere.com_vspherenodeclasses.yaml charts/karpenter/crds/
+      # karpenter-crd chart templates are Helm-rendered, so re-inject the additionalAnnotations hook controller-gen doesn't know about
+      - |
+        cp -f {{.KARPENTER_CORE_DIR}}/pkg/apis/crds/* charts/karpenter-crd/templates/
+        cp -f pkg/apis/crds/karpenter.vsphere.com_vspherenodeclasses.yaml charts/karpenter-crd/templates/
+        perl -pi -e 's/(controller-gen\.kubebuilder\.io\/version: v[0-9.]+)/$1\n    {{"{{"}}- with .Values.additionalAnnotations {{"}}"}}\n      {{"{{"}}- toYaml . | nindent 4 {{"}}"}}\n    {{"{{"}}- end {{"}}"}}/' charts/karpenter-crd/templates/*.yaml
   
   image:
     desc: Build the Karpenter controller images using ko build
