@@ -102,7 +102,7 @@ type VsphereNodeClassSpec struct {
 
 type UserDataType string
 
-// KubeletConfig is a subset of the kubelet.config.k8s.io/v1beta1 kubeletConfiguration.
+// KubeletConfiguration is a subset of the kubelet.config.k8s.io/v1beta1 kubeletConfiguration.
 type KubeletConfiguration struct {
 	// KubeReserved contains resources reserved for kubernetes system components.
 	// +kubebuilder:validation:MaxProperties=4
