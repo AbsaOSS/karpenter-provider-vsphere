@@ -4,9 +4,6 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.5
-    {{- with .Values.additionalAnnotations }}
-      {{- toYaml . | nindent 4 }}
-    {{- end }}
   name: vspherenodeclasses.karpenter.vsphere.com
 spec:
   group: karpenter.vsphere.com
@@ -164,6 +161,8 @@ spec:
                         || x=='pid')
                     - message: kubeReserved value cannot be a negative resource quantity
                       rule: self.all(x, !self[x].startsWith('-'))
+                    - message: kubeReserved values must be resource quantities
+                      rule: self.all(x, isQuantity(self[x]))
                   systemReserved:
                     additionalProperties:
                       type: string

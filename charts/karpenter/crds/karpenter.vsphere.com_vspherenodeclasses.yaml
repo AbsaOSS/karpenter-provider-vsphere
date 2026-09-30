@@ -161,6 +161,8 @@ spec:
                         || x=='pid')
                     - message: kubeReserved value cannot be a negative resource quantity
                       rule: self.all(x, !self[x].startsWith('-'))
+                    - message: kubeReserved values must be resource quantities
+                      rule: self.all(x, isQuantity(self[x]))
                   systemReserved:
                     additionalProperties:
                       type: string
