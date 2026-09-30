@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/operator/options"
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/overhead"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -62,7 +64,7 @@ func (p instanceProfile) price() float64 {
 }
 
 type KwokInstanceTypesProvider interface {
-	List(ctx context.Context, diskSize int64) ([]*cloudprovider.InstanceType, error)
+	List(ctx context.Context) ([]*cloudprovider.InstanceType, error)
 }
 
 func (p instanceProfile) memGiB() int {
@@ -100,14 +102,22 @@ func getProfilesCatalog() map[string]instanceProfile {
 // Catalog contains all supported instance profiles.
 var instanceProfilesCatalog = getProfilesCatalog()
 
-func (r KwokInstanceTypesStaticProvider) List(ctx context.Context, diskSize int64) ([]*cloudprovider.InstanceType, error) {
+func (r KwokInstanceTypesStaticProvider) List(ctx context.Context) ([]*cloudprovider.InstanceType, error) {
 	zone, region := getZoneAndRegionFromContext(ctx)
+	vmMemoryOverheadPercent := getVMMemoryOverheadPercentFromContext(ctx)
 	result := make([]*cloudprovider.InstanceType, 0, len(instanceProfilesCatalog))
 	for _, profile := range instanceProfilesCatalog {
 		// TODO: specify os and resourcePods instead of hardcoding them
-		result = append(result, enrichToInstanceType(&profile, linuxOS, amd64Architecture, diskSize, zone, region, maxPods))
+		result = append(result, enrichToInstanceType(&profile, linuxOS, amd64Architecture, zone, region, maxPods, vmMemoryOverheadPercent))
 	}
 	return result, nil
+}
+
+func getVMMemoryOverheadPercentFromContext(ctx context.Context) float64 {
+	if opts := options.FromContext(ctx); opts != nil {
+		return opts.VMMemoryOverheadPercent
+	}
+	return 0
 }
 
 func getZoneAndRegionFromContext(ctx context.Context) (string, string) {
@@ -119,21 +129,22 @@ func getZoneAndRegionFromContext(ctx context.Context) (string, string) {
 	return zone, region
 }
 
-func enrichToInstanceType(profile *instanceProfile, os string, arch string, diskSize int64, zone string, region string, resourcePods int) *cloudprovider.InstanceType {
+func enrichToInstanceType(profile *instanceProfile, os string, arch string, zone string, region string, resourcePods int, vmMemoryOverheadPercent float64) *cloudprovider.InstanceType {
+	memory := resource.MustParse(fmt.Sprintf("%dGi", profile.memGiB()))
 	return &cloudprovider.InstanceType{
 		Name: profile.name(),
 		Requirements: scheduling.NewRequirements(
 			scheduling.NewRequirement(corev1.LabelInstanceTypeStable, corev1.NodeSelectorOpIn, profile.name()),
 			scheduling.NewRequirement(corev1.LabelArchStable, corev1.NodeSelectorOpIn, arch),
 			scheduling.NewRequirement(corev1.LabelOSStable, corev1.NodeSelectorOpIn, os),
+			scheduling.NewRequirement(v1alpha1.LabelInstanceCPU, corev1.NodeSelectorOpIn, fmt.Sprint(profile.VCPU)),
+			scheduling.NewRequirement(v1alpha1.LabelInstanceMemory, corev1.NodeSelectorOpIn, fmt.Sprint(utils.InstanceTypeToMegabytes(&memory))),
 		),
 		Capacity: corev1.ResourceList{
-			corev1.ResourceCPU:              resource.MustParse(fmt.Sprintf("%d", profile.VCPU)),
-			corev1.ResourceMemory:           resource.MustParse(fmt.Sprintf("%dGi", profile.memGiB())),
-			corev1.ResourcePods:             resource.MustParse(fmt.Sprintf("%d", resourcePods)),
-			corev1.ResourceEphemeralStorage: resource.MustParse(utils.GiToByteAsString(diskSize)),
+			corev1.ResourceCPU:    resource.MustParse(fmt.Sprintf("%d", profile.VCPU)),
+			corev1.ResourceMemory: *overhead.Memory(memory, vmMemoryOverheadPercent),
+			corev1.ResourcePods:   resource.MustParse(fmt.Sprintf("%d", resourcePods)),
 		},
-		//TODO: compute kubelet overhead
 		Overhead: &cloudprovider.InstanceTypeOverhead{},
 		Offerings: []*cloudprovider.Offering{
 			{

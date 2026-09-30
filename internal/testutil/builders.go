@@ -176,6 +176,8 @@ func NewInstanceType() *InstanceTypeBuilder {
 					corev1.NodeSelectorOpIn,
 					"linux",
 				),
+				scheduling.NewRequirement(v1alpha1.LabelInstanceCPU, corev1.NodeSelectorOpIn, "4"),
+				scheduling.NewRequirement(v1alpha1.LabelInstanceMemory, corev1.NodeSelectorOpIn, "16384"),
 			),
 			Capacity: corev1.ResourceList{
 				corev1.ResourceCPU:              resource.MustParse("4"),
@@ -197,13 +199,14 @@ func (b *InstanceTypeBuilder) WithName(name string) *InstanceTypeBuilder {
 // WithCPU sets the CPU capacity.
 func (b *InstanceTypeBuilder) WithCPU(cpu string) *InstanceTypeBuilder {
 	b.obj.Capacity[corev1.ResourceCPU] = resource.MustParse(cpu)
-	return b
+	return b.WithRequirement(v1alpha1.LabelInstanceCPU, corev1.NodeSelectorOpIn, cpu)
 }
 
 // WithMemory sets the memory capacity.
 func (b *InstanceTypeBuilder) WithMemory(memory string) *InstanceTypeBuilder {
-	b.obj.Capacity[corev1.ResourceMemory] = resource.MustParse(memory)
-	return b
+	quantity := resource.MustParse(memory)
+	b.obj.Capacity[corev1.ResourceMemory] = quantity
+	return b.WithRequirement(v1alpha1.LabelInstanceMemory, corev1.NodeSelectorOpIn, fmt.Sprint(quantity.Value()/(1024*1024)))
 }
 
 // WithPods sets the maximum pods capacity.

@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"sigs.k8s.io/karpenter/pkg/scheduling"
 
 	"github.com/absaoss/karpenter-provider-vsphere/internal/testutil"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/operator/options"
-	"github.com/absaoss/karpenter-provider-vsphere/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	corecloudprovider "sigs.k8s.io/karpenter/pkg/cloudprovider"
@@ -19,18 +19,30 @@ import (
 	"github.com/vmware/govmomi/vim25/types"
 )
 
-func TestGenerateSpec(t *testing.T) {
-	instanceType := &corecloudprovider.InstanceType{
-		Name: "vsphere-vm.cpu-1.mem-64gb.os-linux",
-		Capacity: corev1.ResourceList{
-			corev1.ResourceCPU:              resource.MustParse("1"),
-			corev1.ResourceMemory:           resource.MustParse("64Gi"),
-			corev1.ResourceEphemeralStorage: resource.MustParse(utils.GiToByteAsString(5)),
-		},
-	}
-	expectedMemInMB := int64(65536) // 64 GiB in megabytes
-	mem := utils.InstanceTypeToMegabytes(instanceType.Capacity.Memory())
-	assert.Equal(t, expectedMemInMB, mem)
+func TestConfiguredMemoryMB(t *testing.T) {
+	t.Run("uses the instance-memory requirement, not the reduced capacity", func(t *testing.T) {
+		instanceType := &corecloudprovider.InstanceType{
+			Name: "vsphere-vm.cpu-4.mem-16gb.os-linux",
+			Requirements: scheduling.NewRequirements(
+				scheduling.NewRequirement(v1alpha1.LabelInstanceMemory, corev1.NodeSelectorOpIn, "16384"),
+			),
+			Capacity: corev1.ResourceList{
+				corev1.ResourceMemory: resource.MustParse("15155Mi"),
+			},
+		}
+		memoryMB, err := ConfiguredMemoryMB(instanceType)
+		require.NoError(t, err)
+		assert.Equal(t, int64(16384), memoryMB)
+	})
+
+	t.Run("missing requirement is an error", func(t *testing.T) {
+		instanceType := &corecloudprovider.InstanceType{
+			Name:         "no-memory-label",
+			Requirements: scheduling.NewRequirements(),
+		}
+		_, err := ConfiguredMemoryMB(instanceType)
+		require.ErrorContains(t, err, v1alpha1.LabelInstanceMemory)
+	})
 }
 
 func TestGenerateVMName(t *testing.T) {

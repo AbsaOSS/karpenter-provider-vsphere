@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"maps"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/operator/options"
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/overhead"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/userdata"
 	corev1 "k8s.io/api/core/v1"
 
@@ -16,7 +18,6 @@ import (
 
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/finder"
-	"github.com/absaoss/karpenter-provider-vsphere/pkg/utils"
 	"github.com/samber/lo"
 	"github.com/vmware/govmomi/object"
 	models "github.com/vmware/govmomi/vim25/mo"
@@ -63,6 +64,10 @@ func (p *DefaultProvider) Name() string {
 
 func (p *DefaultProvider) GenerateVMSpec(ctx context.Context, class *v1alpha1.VsphereNodeClass, name string, image *object.VirtualMachine, instanceType *corecloudprovider.InstanceType) (*types.VirtualMachineCloneSpec, error) {
 	diskEnableUUID := true
+	memoryMB, err := ConfiguredMemoryMB(instanceType)
+	if err != nil {
+		return nil, err
+	}
 	locationSpec, err := p.GenerateTarget(ctx, class)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate target for VM: %w", err)
@@ -85,7 +90,7 @@ func (p *DefaultProvider) GenerateVMSpec(ctx context.Context, class *v1alpha1.Vs
 			Name:         name,
 			Annotation:   buildAnnotation(image.InventoryPath, instanceType.Name),
 			NumCPUs:      int32(instanceType.Capacity.Cpu().Value()),
-			MemoryMB:     utils.InstanceTypeToMegabytes(instanceType.Capacity.Memory()),
+			MemoryMB:     memoryMB,
 			GuestId:      string(types.VirtualMachineGuestOsIdentifierOtherLinux64Guest), // This should be adjusted based on the OS type in the instance type.
 			DeviceChange: diskAndNet,
 			CreateDate:   &t,
@@ -126,6 +131,10 @@ func (p *DefaultProvider) Create(
 		return nil, nil, fmt.Errorf("selecting instance type: %w", err)
 	}
 
+	memoryMB, err := ConfiguredMemoryMB(instanceType)
+	if err != nil {
+		return nil, nil, err
+	}
 	VMName := GenerateVMName(p.ClusterName, claim.Name)
 	instanceTags := map[string]string{
 		v1alpha1.ClusterNameTagKey:   p.ClusterName,
@@ -133,7 +142,7 @@ func (p *DefaultProvider) Create(
 		karpv1.NodePoolLabelKey:      claim.Labels[karpv1.NodePoolLabelKey],
 		v1alpha1.LabelInstanceSize:   instanceType.Name,
 		v1alpha1.LabelInstanceCPU:    fmt.Sprintf("%d", instanceType.Capacity.Cpu().Value()),
-		v1alpha1.LabelInstanceMemory: fmt.Sprintf("%d", utils.InstanceTypeToMegabytes(instanceType.Capacity.Memory())),
+		v1alpha1.LabelInstanceMemory: fmt.Sprintf("%d", memoryMB),
 	}
 
 	maps.Copy(instanceTags, class.Spec.Tags)
@@ -143,6 +152,10 @@ func (p *DefaultProvider) Create(
 	}
 	taints = append(taints, claim.Spec.Taints...)
 	controllerOpts := options.FromContext(ctx)
+	kubeletConfig, err := overhead.KubeletConfigFile(overhead.Resolve(class.Spec.Kubelet, instanceType.Capacity))
+	if err != nil {
+		return nil, nil, fmt.Errorf("instance type %s: %w", instanceType.Name, err)
+	}
 	workerInitConfig := userdata.NewInitData(
 		taints,
 		VMName,
@@ -150,6 +163,7 @@ func (p *DefaultProvider) Create(
 		controllerOpts.JoinToken,
 		controllerOpts.KubeVersion,
 		class.Spec.UserData.AdditionalUserdata,
+		kubeletConfig,
 	)
 	initType := &userdata.InitType{
 		Distro: v1alpha1.Distro(controllerOpts.KubeDistro),
@@ -452,4 +466,16 @@ func (p *DefaultProvider) Delete(ctx context.Context, vmID string) error {
 	}
 
 	return nil
+}
+
+func ConfiguredMemoryMB(instanceType *corecloudprovider.InstanceType) (int64, error) {
+	values := instanceType.Requirements.Get(v1alpha1.LabelInstanceMemory).Values()
+	if len(values) != 1 {
+		return 0, fmt.Errorf("instance type %s: expected one %s value, got %d", instanceType.Name, v1alpha1.LabelInstanceMemory, len(values))
+	}
+	memoryMB, err := strconv.ParseInt(values[0], 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("instance type %s: invalid %s %q: %w", instanceType.Name, v1alpha1.LabelInstanceMemory, values[0], err)
+	}
+	return memoryMB, nil
 }

@@ -5,8 +5,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/operator/options"
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/kwok"
+	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"sigs.k8s.io/karpenter/pkg/cloudprovider"
 
 	"github.com/absaoss/karpenter-provider-vsphere/internal/testutil"
 	"github.com/absaoss/karpenter-provider-vsphere/internal/testutil/instancefixture"
@@ -266,7 +270,7 @@ func TestInstanceTypesFromNodeClass(t *testing.T) {
 		WithInstanceType("2", "8Gi", 55, "zone-b", "linux").
 		Build()
 
-	instanceTypes := instanceTypesFromNodeClass(nodeClass)
+	instanceTypes := instanceTypesFromNodeClass(context.Background(), nodeClass)
 
 	require.Len(t, instanceTypes, 2, "expected 2 instance types")
 
@@ -341,8 +345,9 @@ func TestInstanceTypesFromNodeClass(t *testing.T) {
 		assertResourceQuantity(t, capacity, corev1.ResourceCPU, "4")
 		assertResourceQuantity(t, capacity, corev1.ResourceMemory, "16Gi")
 		assertResourceQuantity(t, capacity, corev1.ResourcePods, "110")
-		// Disk size is converted from Gi to bytes (100Gi)
-		assertResourceQuantity(t, capacity, corev1.ResourceEphemeralStorage, "107374182400")
+		// Disk size and overhead are applied afterwards, in getInstanceTypes.
+		assert.NotContains(t, capacity, corev1.ResourceEphemeralStorage)
+		assert.Empty(t, instanceTypes[0].Overhead.Total())
 	})
 
 	t.Run("normalizes OS to lowercase", func(t *testing.T) {
@@ -437,4 +442,113 @@ func newTestCloudProvider(kwokProvider *testutil.MockKwokInstanceTypesProvider) 
 	return &CloudProvider{
 		kwokInstanceTypesProvider: kwokProvider,
 	}
+}
+
+func TestGetInstanceTypesAppliesNodeClass(t *testing.T) {
+	ctx := options.ToContext(context.Background(), &options.Options{VMMemoryOverheadPercent: 0.075})
+	provider := &CloudProvider{kwokInstanceTypesProvider: kwok.KwokInstanceTypesStaticProvider{}}
+
+	byName := func(t *testing.T, instanceTypes []*cloudprovider.InstanceType, name string) *cloudprovider.InstanceType {
+		t.Helper()
+		instanceType, found := lo.Find(instanceTypes, func(it *cloudprovider.InstanceType) bool { return it.Name == name })
+		require.True(t, found, "instance type %s not found", name)
+		return instanceType
+	}
+
+	t.Run("defaults give each instance type its own overhead", func(t *testing.T) {
+		nodeClass := testutil.NewNodeClass().
+			WithSingleInstanceType("4", "16Gi", 110, "zone-a", "linux").
+			WithInstanceType("2", "8Gi", 55, "zone-b", "linux").
+			WithDiskSize(50).
+			Build()
+
+		instanceTypes, err := provider.getInstanceTypes(ctx, nodeClass)
+		require.NoError(t, err)
+
+		// 4 vCPU / 16Gi / 110 pods: the worked example in docs/design/kubelet-overhead.md
+		fromNodeClass := byName(t, instanceTypes, "vsphere-vm.cpu-4.mem-16gb.os-linux")
+		assertResourceQuantity(t, fromNodeClass.Capacity, corev1.ResourceMemory, "15155Mi")
+		assertResourceQuantity(t, fromNodeClass.Capacity, corev1.ResourceEphemeralStorage, "50Gi")
+		assertResourceQuantity(t, fromNodeClass.Allocatable(), corev1.ResourceCPU, "3920m")
+		assertResourceQuantity(t, fromNodeClass.Allocatable(), corev1.ResourceMemory, "13590Mi")
+		assertResourceQuantity(t, fromNodeClass.Allocatable(), corev1.ResourceEphemeralStorage, "44Gi")
+		assertResourceQuantity(t, fromNodeClass.Allocatable(), corev1.ResourcePods, "110")
+		assert.Equal(t, []string{"16384"}, fromNodeClass.Requirements.Get(v1alpha1.LabelInstanceMemory).Values())
+
+		// 2 vCPU / 8Gi / 55 pods: smaller CPU and pod count give a smaller kube-reserved
+		smaller := byName(t, instanceTypes, "vsphere-vm.cpu-2.mem-8gb.os-linux")
+		assertResourceQuantity(t, smaller.Overhead.KubeReserved, corev1.ResourceCPU, "70m")
+		assertResourceQuantity(t, smaller.Overhead.KubeReserved, corev1.ResourceMemory, "860Mi")
+
+		// m-9x from the KWOK catalog (4 vCPU / 32Gi / 110 pods) goes through the same step
+		fromCatalog := byName(t, instanceTypes, "m-9x")
+		assertResourceQuantity(t, fromCatalog.Capacity, corev1.ResourceEphemeralStorage, "50Gi")
+		assertResourceQuantity(t, fromCatalog.Allocatable(), corev1.ResourceCPU, "3920m")
+		assertResourceQuantity(t, fromCatalog.Allocatable(), corev1.ResourceMemory, "28745Mi")
+		assertResourceQuantity(t, fromCatalog.Allocatable(), corev1.ResourceEphemeralStorage, "44Gi")
+	})
+
+	t.Run("spec.kubelet overrides the defaults per key", func(t *testing.T) {
+		nodeClass := testutil.NewNodeClass().
+			WithSingleInstanceType("4", "16Gi", 110, "zone-a", "linux").
+			Build()
+		nodeClass.Spec.Kubelet = &v1alpha1.KubeletConfiguration{
+			KubeReserved:   map[string]string{"memory": "1Gi"},
+			SystemReserved: map[string]string{"cpu": "100m"},
+		}
+
+		instanceTypes, err := provider.getInstanceTypes(ctx, nodeClass)
+		require.NoError(t, err)
+
+		for _, name := range []string{"vsphere-vm.cpu-4.mem-16gb.os-linux", "m-9x"} {
+			instanceType := byName(t, instanceTypes, name)
+			assertResourceQuantity(t, instanceType.Overhead.KubeReserved, corev1.ResourceMemory, "1Gi")
+			assertResourceQuantity(t, instanceType.Overhead.KubeReserved, corev1.ResourceCPU, "80m")
+			assertResourceQuantity(t, instanceType.Overhead.SystemReserved, corev1.ResourceCPU, "100m")
+		}
+	})
+
+	t.Run("unknown disk size only skips the ephemeral-storage overhead", func(t *testing.T) {
+		nodeClass := testutil.NewNodeClass().
+			WithSingleInstanceType("4", "16Gi", 110, "zone-a", "linux").
+			WithDiskSize(0).
+			Build()
+
+		instanceTypes, err := provider.getInstanceTypes(ctx, nodeClass)
+		require.NoError(t, err)
+
+		instanceType := byName(t, instanceTypes, "vsphere-vm.cpu-4.mem-16gb.os-linux")
+		assertResourceQuantity(t, instanceType.Allocatable(), corev1.ResourceCPU, "3920m")
+		assertResourceQuantity(t, instanceType.Allocatable(), corev1.ResourceMemory, "13590Mi")
+		assertResourceQuantity(t, instanceType.Allocatable(), corev1.ResourceEphemeralStorage, "0")
+	})
+
+	t.Run("each NodeClass gets its own copy", func(t *testing.T) {
+		shared := testutil.MockKwokInstanceTypesSlice()
+		mocked := newTestCloudProvider(testutil.NewMockKwokProvider(shared))
+		small := testutil.NewNodeClass().WithDiskSize(50).Build()
+		large := testutil.NewNodeClass().WithDiskSize(200).Build()
+
+		fromSmall, err := mocked.getInstanceTypes(ctx, small)
+		require.NoError(t, err)
+		fromLarge, err := mocked.getInstanceTypes(ctx, large)
+		require.NoError(t, err)
+
+		assertResourceQuantity(t, byName(t, fromSmall, shared[0].Name).Allocatable(), corev1.ResourceEphemeralStorage, "44Gi")
+		assertResourceQuantity(t, byName(t, fromLarge, shared[0].Name).Allocatable(), corev1.ResourceEphemeralStorage, "179Gi")
+		assert.Empty(t, shared[0].Overhead.Total(), "the listed instance type must not be modified")
+	})
+
+	t.Run("invalid spec.kubelet value returns an error", func(t *testing.T) {
+		nodeClass := testutil.NewNodeClass().
+			WithSingleInstanceType("4", "16Gi", 110, "zone-a", "linux").
+			Build()
+		nodeClass.Spec.Kubelet = &v1alpha1.KubeletConfiguration{
+			KubeReserved: map[string]string{"memory": "abc"},
+		}
+
+		_, err := provider.getInstanceTypes(ctx, nodeClass)
+		require.ErrorContains(t, err, "vsphere-vm.cpu-4.mem-16gb.os-linux")
+		require.ErrorContains(t, err, "kubeReserved")
+	})
 }
