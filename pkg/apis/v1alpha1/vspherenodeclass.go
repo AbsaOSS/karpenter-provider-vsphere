@@ -96,9 +96,57 @@ type VsphereNodeClassSpec struct {
 	UserData          UserData              `json:"userData,omitempty"`
 	K8sDistro         Distro                `json:"k8SDistro,omitempty"`
 	Tags              map[string]string     `json:"tags,omitempty"`
+	// +optional
+	Kubelet *KubeletConfigurations `json:"kubelet,omitempty"`
 }
 
 type UserDataType string
+
+// KubeletConfig is a subset of the kubelet.config.k8s.io/v1beta1 kubeletConfiguration.
+type KubeletConfigurations struct {
+	// KubeReserved contains resources reserved for kubernetes system components.
+	// +kubebuilder:validation:MaxProperties=4
+	// +kubebuilder:validation:XValidation:message="valid keys for kubeReserved are ['cpu','memory','ephemeral-storage','pid']",rule="self.all(x, x=='cpu' || x=='memory' || x=='ephemeral-storage' || x=='pid')"
+	// +kubebuilder:validation:XValidation:message="kubeReserved value cannot be a negative resource quantity",rule="self.all(x, !self[x].startsWith('-'))"
+	// +kubebuilder:XValidation:XValidation:message="kubeReserved values must be resource quantities",rule="self.all(x, isQuantity(self[x]))"
+	// +optional
+	KubeReserved map[string]string `json:"kubeReserved,omitempty"`
+	// SystemReserved contains resources reserved for OS system daemons and kernel memory.
+	// +kubebuilder:validation:MaxProperties=4
+	// +kubebuilder:validation:XValidation:message="valid keys for systemReserved are ['cpu','memory','ephemeral-storage','pid']",rule="self.all(x, x=='cpu' || x=='memory' || x=='ephemeral-storage' || x=='pid')"
+	// +kubebuilder:validation:XValidation:message="systemReserved value cannot be a negative resource quantity",rule="self.all(x, !self[x].startsWith('-'))"
+	// +kubebuilder:validation:XValidation:message="systemReserved values must be resource quantities",rule="self.all(x, isQuantity(self[x]))"
+	// +optional
+	SystemReserved map[string]string `json:"systemReserved,omitempty"`
+	// EvictionHard is the map of signal names to quantities that define hard eviction thresholds.
+	// +kubebuilder:validation:MaxProperties=6
+	// +kubebuilder:validation:XValidation:message="valid keys for evictionHard are ['memory.available','nodefs.available','nodefs.inodesFree','imagefs.available','imagefs.inodesFree','pid.available']",rule="self.all(x, x in ['memory.available','nodefs.available','nodefs.inodesFree','imagefs.available','imagefs.inodesFree','pid.available'])"
+	// +kubebuilder:validation:XValidation:message="evictionHard values must be a resource quantity or a percentage between 0% and 100%",rule="self.all(x, isQuantity(self[x]) || self[x].matches('^(100([.]0+)?|[0-9]{1,2}([.][0-9]+)?)%$'))"
+	// +optional
+	EvictionHard map[string]string `json:"evictionHard,omitempty"`
+}
+
+func (k *KubeletConfigurations) GetKubeReserved() map[string]string {
+	if k == nil {
+		return nil
+	}
+	return k.KubeReserved
+}
+
+func (k *KubeletConfigurations) GetSystemReserved() map[string]string {
+	if k == nil {
+		return nil
+	}
+	return k.SystemReserved
+}
+
+func (k *KubeletConfigurations) GetEvictionHard() map[string]string {
+	if k == nil {
+		return nil
+	}
+	return k.EvictionHard
+}
+
 type Distro string
 
 const (
