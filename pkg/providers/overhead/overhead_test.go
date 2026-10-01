@@ -108,3 +108,69 @@ func TestResolve(t *testing.T) {
 		require.Equal(t, "100Mi", defaultEvictionHard["memory.available"])
 	})
 }
+
+func TestComputeEvictionSignal(t *testing.T) {
+	capacity := resource.MustParse("50Gi")
+	tests := []struct {
+		name    string
+		value   string
+		want    string
+		wantErr bool
+	}{
+		{name: "quantity", value: "500Mi", want: "500Mi"},
+		{name: "percentage", value: "10%", want: "5Gi"},
+		{name: "fractional percentage rounds up", value: "0.001%", want: "536871"},
+		{name: "100% disables the threshold", value: "100%", want: "0"},
+		{name: "invalid percentage", value: "ab12%", wantErr: true},
+		{name: "invalid quantity", value: "ab12", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := computeEvictionSignal(capacity, tt.value)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Zero(t, got.Cmp(resource.MustParse(tt.want)), "got %s, want %s", got.String(), tt.want)
+		})
+	}
+}
+
+func TestNewOverhead(t *testing.T) {
+	allocatable := func(capacity corev1.ResourceList, kc *v1alpha1.KubeletConfiguration) corev1.ResourceList {
+		o, err := NewOverhead(Resolve(kc, capacity), capacity)
+		require.NoError(t, err)
+		return resources.Subtract(capacity, o.Total())
+	}
+	requireQuantity := func(t *testing.T, want string, got resource.Quantity) {
+		require.Zero(t, got.Cmp(resource.MustParse(want)), "got %s, want %s", got.String(), want)
+	}
+
+	t.Run("example: defaults only", func(t *testing.T) {
+		got := allocatable(testCapacity(), nil)
+		requireQuantity(t, "3920m", got[corev1.ResourceCPU])
+		requireQuantity(t, "13590Mi", got[corev1.ResourceMemory])
+		requireQuantity(t, "44Gi", got[corev1.ResourceEphemeralStorage])
+		requireQuantity(t, "110", got[corev1.ResourcePods])
+	})
+
+	t.Run("example: with spec.kubelet", func(t *testing.T) {
+		capacity := testCapacity()
+		capacity[corev1.ResourcePods] = resource.MustParse("50")
+		got := allocatable(capacity, &v1alpha1.KubeletConfiguration{
+			KubeReserved:   map[string]string{"memory": "1Gi"},
+			SystemReserved: map[string]string{"cpu": "100m", "memory": "256Mi"},
+			EvictionHard:   map[string]string{"memory.available": "5%", "nodefs.available": "15%"},
+		})
+		requireQuantity(t, "3820m", got[corev1.ResourceCPU])
+		requireQuantity(t, "13117.25Mi", got[corev1.ResourceMemory])
+		requireQuantity(t, "41.5Gi", got[corev1.ResourceEphemeralStorage])
+	})
+
+	t.Run("invalid value returns an error, no panic", func(t *testing.T) {
+		r := Resolve(&v1alpha1.KubeletConfiguration{KubeReserved: map[string]string{"memory": "abc"}}, testCapacity())
+		_, err := NewOverhead(r, testCapacity())
+		require.ErrorContains(t, err, "kubeReserved")
+	})
+}

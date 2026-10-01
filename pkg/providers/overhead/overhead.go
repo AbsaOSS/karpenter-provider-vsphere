@@ -4,11 +4,14 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strconv"
+	"strings"
 
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"sigs.k8s.io/karpenter/pkg/cloudprovider"
 	"sigs.k8s.io/karpenter/pkg/utils/resources"
 
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/operator/options"
@@ -77,4 +80,57 @@ func Resolve(kc *v1alpha1.KubeletConfiguration, capacity corev1.ResourceList) Re
 		SystemReserved: lo.Assign(kc.GetSystemReserved()),
 		EvictionHard:   lo.Assign(defaultEvictionHard, kc.GetEvictionHard()),
 	}
+}
+
+func computeEvictionSignal(capacity resource.Quantity, value string) (resource.Quantity, error) {
+	if strings.HasSuffix(value, "%") {
+		p, err := strconv.ParseFloat(strings.TrimSuffix(value, "%"), 64)
+		if err != nil {
+			return resource.Quantity{}, fmt.Errorf("invalid percentage %q: %w", value, err)
+		}
+		if p == 100 {
+			p = 0
+		}
+		return *resource.NewQuantity(int64(math.Ceil(capacity.AsApproximateFloat64()/100*p)), resource.BinarySI), nil
+	}
+	return resource.ParseQuantity(value)
+}
+
+func parseResourceMap(m map[string]string) (corev1.ResourceList, error) {
+	out := corev1.ResourceList{}
+	for k, v := range m {
+		q, err := resource.ParseQuantity(v)
+		if err != nil {
+			return nil, fmt.Errorf("%s=%q: %w", k, v, err)
+		}
+		out[corev1.ResourceName(k)] = q
+	}
+	return out, nil
+}
+
+func NewOverhead(r Resolved, capacity corev1.ResourceList) (*cloudprovider.InstanceTypeOverhead, error) {
+	kube, err := parseResourceMap(r.KubeReserved)
+	if err != nil {
+		return nil, fmt.Errorf("kubeReserved: %w", err)
+	}
+	sys, err := parseResourceMap(r.SystemReserved)
+	if err != nil {
+		return nil, fmt.Errorf("systemReserved: %w", err)
+	}
+	memory, err := computeEvictionSignal(*capacity.Memory(), r.EvictionHard[evictionMemoryAvailable])
+	if err != nil {
+		return nil, fmt.Errorf("evictionHard: %s: %w", evictionMemoryAvailable, err)
+	}
+	storage, err := computeEvictionSignal(*capacity.StorageEphemeral(), r.EvictionHard[evictionNodeFSAvailable])
+	if err != nil {
+		return nil, fmt.Errorf("evictionHard: %s: %w", evictionNodeFSAvailable, err)
+	}
+	return &cloudprovider.InstanceTypeOverhead{
+		KubeReserved:   kube,
+		SystemReserved: sys,
+		EvictionThreshold: corev1.ResourceList{
+			corev1.ResourceMemory:           memory,
+			corev1.ResourceEphemeralStorage: storage,
+		},
+	}, nil
 }
