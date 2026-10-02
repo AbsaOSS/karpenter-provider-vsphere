@@ -10,7 +10,7 @@ import (
 type kubeletConfig struct {
 	APIVersion     string            `yaml:"apiVersion"`
 	Kind           string            `yaml:"kind"`
-	MaxPods        int64             `yaml:"maxPods"`
+	MaxPods        int64             `yaml:"maxPods,omitempty"`
 	KubeReserved   map[string]string `yaml:"kubeReserved,omitempty"`
 	SystemReserved map[string]string `yaml:"systemReserved,omitempty"`
 	EvictionHard   map[string]string `yaml:"evictionHard,omitempty"`

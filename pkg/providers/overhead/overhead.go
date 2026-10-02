@@ -126,11 +126,22 @@ func NewOverhead(r Resolved, capacity corev1.ResourceList) (*cloudprovider.Insta
 		return nil, fmt.Errorf("evictionHard: %s: %w", evictionNodeFSAvailable, err)
 	}
 	return &cloudprovider.InstanceTypeOverhead{
-		KubeReserved:   kube,
-		SystemReserved: sys,
-		EvictionThreshold: corev1.ResourceList{
+		KubeReserved:   dropUnknownCapacity(kube, capacity),
+		SystemReserved: dropUnknownCapacity(sys, capacity),
+		EvictionThreshold: dropUnknownCapacity(corev1.ResourceList{
 			corev1.ResourceMemory:           memory,
 			corev1.ResourceEphemeralStorage: storage,
-		},
+		}, capacity),
 	}, nil
+}
+
+// dropUnknownCapacity removes reservations for resources whose capacity is zero. A zero capacity
+// means the size isn't known (for example diskSize isn't set on the NodeClass), so there is
+// nothing to reserve from. Keeping the reservation would make allocatable negative, and core
+// Karpenter treats an instance type with any negative allocatable as one nothing fits on.
+func dropUnknownCapacity(reserved, capacity corev1.ResourceList) corev1.ResourceList {
+	return lo.PickBy(reserved, func(name corev1.ResourceName, _ resource.Quantity) bool {
+		quantity, ok := capacity[name]
+		return ok && !quantity.IsZero()
+	})
 }

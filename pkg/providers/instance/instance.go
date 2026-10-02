@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/operator/options"
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/overhead"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/userdata"
 	corev1 "k8s.io/api/core/v1"
 
@@ -143,6 +144,10 @@ func (p *DefaultProvider) Create(
 	}
 	taints = append(taints, claim.Spec.Taints...)
 	controllerOpts := options.FromContext(ctx)
+	kubeletConfig, err := overhead.KubeletConfigFile(overhead.Resolve(class.Spec.Kubelet, instanceType.Capacity))
+	if err != nil {
+		return nil, nil, fmt.Errorf("instance type %s: %w", instanceType.Name, err)
+	}
 	workerInitConfig := userdata.NewInitData(
 		taints,
 		VMName,
@@ -150,6 +155,7 @@ func (p *DefaultProvider) Create(
 		controllerOpts.JoinToken,
 		controllerOpts.KubeVersion,
 		class.Spec.UserData.AdditionalUserdata,
+		kubeletConfig,
 	)
 	initType := &userdata.InitType{
 		Distro: v1alpha1.Distro(controllerOpts.KubeDistro),

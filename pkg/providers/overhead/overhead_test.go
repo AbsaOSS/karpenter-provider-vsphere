@@ -173,4 +173,19 @@ func TestNewOverhead(t *testing.T) {
 		_, err := NewOverhead(r, testCapacity())
 		require.ErrorContains(t, err, "kubeReserved")
 	})
+
+	t.Run("a resource with zero capacity is not reserved", func(t *testing.T) {
+		capacity := testCapacity()
+		capacity[corev1.ResourceEphemeralStorage] = resource.MustParse("0")
+
+		o, err := NewOverhead(Resolve(nil, capacity), capacity)
+		require.NoError(t, err)
+		require.NotContains(t, o.KubeReserved, corev1.ResourceEphemeralStorage)
+		require.NotContains(t, o.EvictionThreshold, corev1.ResourceEphemeralStorage)
+
+		got := resources.Subtract(capacity, o.Total())
+		requireQuantity(t, "0", got[corev1.ResourceEphemeralStorage])
+		requireQuantity(t, "13590Mi", got[corev1.ResourceMemory])
+		require.True(t, resources.Fits(corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1")}, got))
+	})
 }

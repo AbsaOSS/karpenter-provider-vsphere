@@ -125,7 +125,7 @@ func getZoneAndRegionFromContext(ctx context.Context) (string, string) {
 	return zone, region
 }
 
-func enrichToInstanceType(ctx context.Context, profile *instanceProfile, os string, arch string, diskSize int64, zone string, region string, resourcePods int, configuration *v1alpha1.KubeletConfiguration) (*cloudprovider.InstanceType, error) {
+func enrichToInstanceType(ctx context.Context, profile *instanceProfile, os string, arch string, diskSize int64, zone string, region string, resourcePods int, kubelet *v1alpha1.KubeletConfiguration) (*cloudprovider.InstanceType, error) {
 	capacity := corev1.ResourceList{
 		corev1.ResourceCPU:              resource.MustParse(fmt.Sprintf("%d", profile.VCPU)),
 		corev1.ResourceMemory:           *overhead.Memory(ctx, resource.MustParse(fmt.Sprintf("%dGi", profile.memGiB()))),
@@ -143,17 +143,6 @@ func enrichToInstanceType(ctx context.Context, profile *instanceProfile, os stri
 			scheduling.NewRequirement(corev1.LabelArchStable, corev1.NodeSelectorOpIn, arch),
 			scheduling.NewRequirement(corev1.LabelOSStable, corev1.NodeSelectorOpIn, os),
 		),
-		Capacity: corev1.ResourceList{
-			corev1.ResourceCPU:              resource.MustParse(fmt.Sprintf("%d", profile.VCPU)),
-			corev1.ResourceMemory:           resource.MustParse(fmt.Sprintf("%dGi", profile.memGiB())),
-			corev1.ResourcePods:             resource.MustParse(fmt.Sprintf("%d", resourcePods)),
-			corev1.ResourceEphemeralStorage: resource.MustParse(utils.GiToByteAsString(diskSize)),
-		},
-		instanceOverhead, err := overhead.NewOverhead(overhead.Resolve(kubelet, capacity), capacity)
-		if err != nil {
-			return nil, fmt.Errorf("instance type %s, %w", profile.name(), err)
-	}
-		//TODO: compute kubelet overhead
 		Capacity: capacity,
 		Overhead: instanceOverhead,
 		Offerings: []*cloudprovider.Offering{
@@ -167,5 +156,5 @@ func enrichToInstanceType(ctx context.Context, profile *instanceProfile, os stri
 				Available: true,
 			},
 		},
-	},nil
+	}, nil
 }

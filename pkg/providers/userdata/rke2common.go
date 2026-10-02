@@ -3,6 +3,7 @@ package userdata
 import (
 	"bytes"
 	"fmt"
+	"strings"
 	"text/template"
 
 	corev1 "k8s.io/api/core/v1"
@@ -19,6 +20,7 @@ node-taint:
   - {{ . }}
 {{- end }}
 {{- end }}`
+	RKE2KubeletConfigPath = "/var/lib/rancher/rke2/agent/etc/kubelet.conf.d/50-karpenter.conf"
 )
 
 func formatTaints(taints []corev1.Taint) []string {
@@ -41,15 +43,24 @@ func getCommon(input *InitData, installCMD string) (*DistroConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+	files := []File{
+		{
+			Owner:       "root:root",
+			Permissions: "0640",
+			Path:        "/etc/rancher/rke2/config.yaml",
+			Content:     configData.String()},
+	}
+	if input.KubeletConfig != "" {
+		files = append(files, File{
+			Owner:       "root:root",
+			Permissions: "0644",
+			Path:        RKE2KubeletConfigPath,
+			Content:     strings.TrimSuffix(input.KubeletConfig, "\n"),
+		})
+	}
 	return &DistroConfig{
 		NodeName: input.NodeName,
-		Files: []File{
-			{
-				Owner:       "root:root",
-				Permissions: "0640",
-				Path:        "/etc/rancher/rke2/config.yaml",
-				Content:     configData.String()},
-		},
+		Files:    files,
 		Commands: []string{
 			"sleep 10",
 			installCMD,
