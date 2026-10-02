@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/operator/options"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -266,7 +267,8 @@ func TestInstanceTypesFromNodeClass(t *testing.T) {
 		WithInstanceType("2", "8Gi", 55, "zone-b", "linux").
 		Build()
 
-	instanceTypes := instanceTypesFromNodeClass(nodeClass)
+	instanceTypes, err := instanceTypesFromNodeClass(context.Background(), nodeClass)
+	require.NoError(t, err)
 
 	require.Len(t, instanceTypes, 2, "expected 2 instance types")
 
@@ -437,4 +439,61 @@ func newTestCloudProvider(kwokProvider *testutil.MockKwokInstanceTypesProvider) 
 	return &CloudProvider{
 		kwokInstanceTypesProvider: kwokProvider,
 	}
+}
+
+func TestInstanceTypesFromNodeClassOverhead(t *testing.T) {
+	ctx := options.ToContext(context.Background(), &options.Options{VMMemoryOverheadPercent: 0.075})
+
+	t.Run("defaults give each instance type its own overhead", func(t *testing.T) {
+		nodeClass := testutil.NewNodeClass().
+			WithSingleInstanceType("4", "16Gi", 110, "zone-a", "linux").
+			WithInstanceType("2", "8Gi", 55, "zone-b", "linux").
+			Build()
+		nodeClass.Spec.DiskSize = 50
+
+		instanceTypes, err := instanceTypesFromNodeClass(ctx, nodeClass)
+		require.NoError(t, err)
+		require.Len(t, instanceTypes, 2)
+
+		// 4 vCPU / 16Gi / 110 pods: the worked example in docs/design/kubelet-overhead.md
+		assertResourceQuantity(t, instanceTypes[0].Capacity, corev1.ResourceMemory, "15155Mi")
+		assertResourceQuantity(t, instanceTypes[0].Allocatable(), corev1.ResourceCPU, "3920m")
+		assertResourceQuantity(t, instanceTypes[0].Allocatable(), corev1.ResourceMemory, "13590Mi")
+		assertResourceQuantity(t, instanceTypes[0].Allocatable(), corev1.ResourceEphemeralStorage, "44Gi")
+		assertResourceQuantity(t, instanceTypes[0].Allocatable(), corev1.ResourcePods, "110")
+
+		// 2 vCPU / 8Gi / 55 pods: smaller CPU and pod count give a smaller kube-reserved
+		assertResourceQuantity(t, instanceTypes[1].Overhead.KubeReserved, corev1.ResourceCPU, "70m")
+		assertResourceQuantity(t, instanceTypes[1].Overhead.KubeReserved, corev1.ResourceMemory, "860Mi")
+	})
+
+	t.Run("spec.kubelet overrides the defaults", func(t *testing.T) {
+		nodeClass := testutil.NewNodeClass().
+			WithSingleInstanceType("4", "16Gi", 110, "zone-a", "linux").
+			Build()
+		nodeClass.Spec.Kubelet = &v1alpha1.KubeletConfiguration{
+			KubeReserved:   map[string]string{"memory": "1Gi"},
+			SystemReserved: map[string]string{"cpu": "100m"},
+		}
+
+		instanceTypes, err := instanceTypesFromNodeClass(ctx, nodeClass)
+		require.NoError(t, err)
+
+		assertResourceQuantity(t, instanceTypes[0].Overhead.KubeReserved, corev1.ResourceMemory, "1Gi")
+		assertResourceQuantity(t, instanceTypes[0].Overhead.KubeReserved, corev1.ResourceCPU, "80m")
+		assertResourceQuantity(t, instanceTypes[0].Overhead.SystemReserved, corev1.ResourceCPU, "100m")
+	})
+
+	t.Run("invalid spec.kubelet value returns an error", func(t *testing.T) {
+		nodeClass := testutil.NewNodeClass().
+			WithSingleInstanceType("4", "16Gi", 110, "zone-a", "linux").
+			Build()
+		nodeClass.Spec.Kubelet = &v1alpha1.KubeletConfiguration{
+			KubeReserved: map[string]string{"memory": "abc"},
+		}
+
+		_, err := instanceTypesFromNodeClass(ctx, nodeClass)
+		require.ErrorContains(t, err, "vsphere-vm.cpu-4.mem-16gb.os-linux")
+		require.ErrorContains(t, err, "kubeReserved")
+	})
 }

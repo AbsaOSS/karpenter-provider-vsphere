@@ -11,6 +11,7 @@ import (
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/instance"
 	kwok "github.com/absaoss/karpenter-provider-vsphere/pkg/providers/kwok"
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/overhead"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/utils"
 	"github.com/awslabs/operatorpkg/status"
 	"github.com/samber/lo"
@@ -255,8 +256,11 @@ func (c *CloudProvider) GetInstanceTypes(ctx context.Context, pool *karpv1.NodeP
 }
 
 func (c *CloudProvider) getInstanceTypes(ctx context.Context, nodeClass *v1alpha1.VsphereNodeClass) ([]*cloudprovider.InstanceType, error) {
-	instanceTypesFromNC := instanceTypesFromNodeClass(nodeClass)
-	kwokInstanceTypes, err := c.kwokInstanceTypesProvider.List(ctx, nodeClass.Spec.DiskSize)
+	instanceTypesFromNC, err := instanceTypesFromNodeClass(ctx, nodeClass)
+	if err != nil {
+		return nil, fmt.Errorf("building nodeclass instance types, %w", err)
+	}
+	kwokInstanceTypes, err := c.kwokInstanceTypesProvider.List(ctx, nodeClass.Spec.DiskSize, nodeClass.Spec.Kubelet)
 	if err != nil {
 		return nil, fmt.Errorf("listing kwok instance types, %w", err)
 	}
@@ -296,11 +300,21 @@ func toCPITypeFormat(cpu, mem, os string) string {
 	return fmt.Sprintf("vsphere-vm.cpu-%s.mem-%sgb.os-%s", cpu, mem, os)
 }
 
-func instanceTypesFromNodeClass(nodeClass *v1alpha1.VsphereNodeClass) []*cloudprovider.InstanceType {
+func instanceTypesFromNodeClass(ctx context.Context, nodeClass *v1alpha1.VsphereNodeClass) ([]*cloudprovider.InstanceType, error) {
 	instanceTypes := []*cloudprovider.InstanceType{}
 	for _, t := range nodeClass.Spec.InstanceTypes {
 		os := strings.ToLower(t.OS)
 		typeName := toCPITypeFormat(t.CPU, t.Memory, os)
+		capacity := corev1.ResourceList{
+			corev1.ResourceCPU:              resource.MustParse(t.CPU),
+			corev1.ResourceMemory:           *overhead.Memory(ctx, resource.MustParse(t.Memory)),
+			corev1.ResourcePods:             resource.MustParse(t.MaxPods),
+			corev1.ResourceEphemeralStorage: resource.MustParse(utils.GiToByteAsString(nodeClass.Spec.DiskSize)),
+		}
+		instanceOverhead, err := overhead.NewOverhead(overhead.Resolve(nodeClass.Spec.Kubelet, capacity), capacity)
+		if err != nil {
+			return nil, fmt.Errorf("instance type %s, %w", typeName, err)
+		}
 		instanceType := &cloudprovider.InstanceType{
 			Name: typeName,
 			Requirements: scheduling.NewRequirements(
@@ -308,14 +322,8 @@ func instanceTypesFromNodeClass(nodeClass *v1alpha1.VsphereNodeClass) []*cloudpr
 				scheduling.NewRequirement(corev1.LabelArchStable, corev1.NodeSelectorOpIn, "amd64"),
 				scheduling.NewRequirement(corev1.LabelOSStable, corev1.NodeSelectorOpIn, os),
 			),
-			Capacity: corev1.ResourceList{
-				corev1.ResourceCPU:              resource.MustParse(t.CPU),
-				corev1.ResourceMemory:           resource.MustParse(t.Memory),
-				corev1.ResourcePods:             resource.MustParse(t.MaxPods),
-				corev1.ResourceEphemeralStorage: resource.MustParse(utils.GiToByteAsString(nodeClass.Spec.DiskSize)),
-			},
-			//TODO: compute kubelet overhead
-			Overhead: &cloudprovider.InstanceTypeOverhead{},
+			Capacity: capacity,
+			Overhead: instanceOverhead,
 			Offerings: []*cloudprovider.Offering{
 				{
 					Requirements: scheduling.NewRequirements(
@@ -329,7 +337,7 @@ func instanceTypesFromNodeClass(nodeClass *v1alpha1.VsphereNodeClass) []*cloudpr
 		}
 		instanceTypes = append(instanceTypes, instanceType)
 	}
-	return instanceTypes
+	return instanceTypes, nil
 }
 
 func (c *CloudProvider) resolveInstanceTypes(ctx context.Context, nodeClaim *karpv1.NodeClaim, nodeClass *v1alpha1.VsphereNodeClass) ([]*cloudprovider.InstanceType, error) {
