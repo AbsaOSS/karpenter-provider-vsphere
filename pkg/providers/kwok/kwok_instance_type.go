@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/operator/options"
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/overhead"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -62,7 +64,7 @@ func (p instanceProfile) price() float64 {
 }
 
 type KwokInstanceTypesProvider interface {
-	List(ctx context.Context, diskSize int64) ([]*cloudprovider.InstanceType, error)
+	List(ctx context.Context, diskSize int64, kubelet *v1alpha1.KubeletConfiguration) ([]*cloudprovider.InstanceType, error)
 }
 
 func (p instanceProfile) memGiB() int {
@@ -100,12 +102,16 @@ func getProfilesCatalog() map[string]instanceProfile {
 // Catalog contains all supported instance profiles.
 var instanceProfilesCatalog = getProfilesCatalog()
 
-func (r KwokInstanceTypesStaticProvider) List(ctx context.Context, diskSize int64) ([]*cloudprovider.InstanceType, error) {
+func (r KwokInstanceTypesStaticProvider) List(ctx context.Context, diskSize int64, kubelet *v1alpha1.KubeletConfiguration) ([]*cloudprovider.InstanceType, error) {
 	zone, region := getZoneAndRegionFromContext(ctx)
 	result := make([]*cloudprovider.InstanceType, 0, len(instanceProfilesCatalog))
 	for _, profile := range instanceProfilesCatalog {
 		// TODO: specify os and resourcePods instead of hardcoding them
-		result = append(result, enrichToInstanceType(&profile, linuxOS, amd64Architecture, diskSize, zone, region, maxPods))
+		instanceType, err := enrichToInstanceType(ctx, &profile, linuxOS, amd64Architecture, diskSize, zone, region, maxPods, kubelet)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, instanceType)
 	}
 	return result, nil
 }
@@ -119,7 +125,17 @@ func getZoneAndRegionFromContext(ctx context.Context) (string, string) {
 	return zone, region
 }
 
-func enrichToInstanceType(profile *instanceProfile, os string, arch string, diskSize int64, zone string, region string, resourcePods int) *cloudprovider.InstanceType {
+func enrichToInstanceType(ctx context.Context, profile *instanceProfile, os string, arch string, diskSize int64, zone string, region string, resourcePods int, kubelet *v1alpha1.KubeletConfiguration) (*cloudprovider.InstanceType, error) {
+	capacity := corev1.ResourceList{
+		corev1.ResourceCPU:              resource.MustParse(fmt.Sprintf("%d", profile.VCPU)),
+		corev1.ResourceMemory:           *overhead.Memory(ctx, resource.MustParse(fmt.Sprintf("%dGi", profile.memGiB()))),
+		corev1.ResourcePods:             resource.MustParse(fmt.Sprintf("%d", resourcePods)),
+		corev1.ResourceEphemeralStorage: resource.MustParse(utils.GiToByteAsString(diskSize)),
+	}
+	instanceOverhead, err := overhead.NewOverhead(overhead.Resolve(kubelet, capacity), capacity)
+	if err != nil {
+		return nil, fmt.Errorf("instance type %s, %w", profile.name(), err)
+	}
 	return &cloudprovider.InstanceType{
 		Name: profile.name(),
 		Requirements: scheduling.NewRequirements(
@@ -127,14 +143,8 @@ func enrichToInstanceType(profile *instanceProfile, os string, arch string, disk
 			scheduling.NewRequirement(corev1.LabelArchStable, corev1.NodeSelectorOpIn, arch),
 			scheduling.NewRequirement(corev1.LabelOSStable, corev1.NodeSelectorOpIn, os),
 		),
-		Capacity: corev1.ResourceList{
-			corev1.ResourceCPU:              resource.MustParse(fmt.Sprintf("%d", profile.VCPU)),
-			corev1.ResourceMemory:           resource.MustParse(fmt.Sprintf("%dGi", profile.memGiB())),
-			corev1.ResourcePods:             resource.MustParse(fmt.Sprintf("%d", resourcePods)),
-			corev1.ResourceEphemeralStorage: resource.MustParse(utils.GiToByteAsString(diskSize)),
-		},
-		//TODO: compute kubelet overhead
-		Overhead: &cloudprovider.InstanceTypeOverhead{},
+		Capacity: capacity,
+		Overhead: instanceOverhead,
 		Offerings: []*cloudprovider.Offering{
 			{
 				Requirements: scheduling.NewRequirements(
@@ -146,5 +156,5 @@ func enrichToInstanceType(profile *instanceProfile, os string, arch string, disk
 				Available: true,
 			},
 		},
-	}
+	}, nil
 }

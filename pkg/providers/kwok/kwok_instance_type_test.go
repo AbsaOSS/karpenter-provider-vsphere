@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/operator/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	karpv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 )
 
@@ -344,7 +346,8 @@ func TestEnrichToInstanceType(t *testing.T) {
 		VCPU:   1,
 	}
 
-	instanceType := enrichToInstanceType(profile, "linux", "amd64", 100, "zone-a", "zone-b", 110)
+	instanceType, err := enrichToInstanceType(context.Background(), profile, "linux", "amd64", 100, "zone-a", "zone-b", 110, nil)
+	require.NoError(t, err)
 
 	t.Run("has correct name", func(t *testing.T) {
 		assert.Equal(t, "c-2x", instanceType.Name)
@@ -405,6 +408,43 @@ func TestEnrichToInstanceType(t *testing.T) {
 	})
 }
 
+func TestEnrichToInstanceTypeOverhead(t *testing.T) {
+	ctx := options.ToContext(context.Background(), &options.Options{VMMemoryOverheadPercent: 0.075})
+	// m-9x: 4 vCPU, 32Gi
+	profile := &instanceProfile{Family: InstanceFamilyMemory, Size: 9, VCPU: 4}
+
+	t.Run("defaults", func(t *testing.T) {
+		instanceType, err := enrichToInstanceType(ctx, profile, "linux", "amd64", 50, "zone-a", "region-a", 110, nil)
+		require.NoError(t, err)
+
+		// memory: 32768Mi - ceil(32768 * 0.075) = 30310Mi capacity, minus 1465Mi kube-reserved and 100Mi eviction
+		assertQuantity(t, "30310Mi", instanceType.Capacity[corev1.ResourceMemory])
+		assertQuantity(t, "3920m", instanceType.Allocatable()[corev1.ResourceCPU])
+		assertQuantity(t, "28745Mi", instanceType.Allocatable()[corev1.ResourceMemory])
+		assertQuantity(t, "44Gi", instanceType.Allocatable()[corev1.ResourceEphemeralStorage])
+	})
+
+	t.Run("spec.kubelet overrides the defaults", func(t *testing.T) {
+		kubelet := &v1alpha1.KubeletConfiguration{KubeReserved: map[string]string{"memory": "2Gi"}}
+		instanceType, err := enrichToInstanceType(ctx, profile, "linux", "amd64", 50, "zone-a", "region-a", 110, kubelet)
+		require.NoError(t, err)
+
+		assertQuantity(t, "2Gi", instanceType.Overhead.KubeReserved[corev1.ResourceMemory])
+		assertQuantity(t, "80m", instanceType.Overhead.KubeReserved[corev1.ResourceCPU])
+	})
+
+	t.Run("invalid spec.kubelet value returns an error", func(t *testing.T) {
+		kubelet := &v1alpha1.KubeletConfiguration{KubeReserved: map[string]string{"memory": "abc"}}
+		_, err := enrichToInstanceType(ctx, profile, "linux", "amd64", 50, "zone-a", "region-a", 110, kubelet)
+		require.ErrorContains(t, err, "m-9x")
+	})
+}
+
+func assertQuantity(t *testing.T, want string, got resource.Quantity) {
+	t.Helper()
+	assert.Zero(t, got.Cmp(resource.MustParse(want)), "got %s, want %s", got.String(), want)
+}
+
 func TestKwokInstanceTypesStaticProviderList(t *testing.T) {
 	provider := KwokInstanceTypesStaticProvider{}
 
@@ -412,14 +452,14 @@ func TestKwokInstanceTypesStaticProviderList(t *testing.T) {
 		opts1 := &options.Options{Zone: "us-west-1a", Region: "us-west-1"}
 		ctx1 := options.ToContext(context.Background(), opts1)
 
-		instanceTypes1, err := provider.List(ctx1, 50)
+		instanceTypes1, err := provider.List(ctx1, 50, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 15, len(instanceTypes1), "should return 15 instance types (5 sizes * 3 families)")
 
 		opts2 := &options.Options{Zone: "us-west-1b", Region: "us-west-1"}
 		ctx2 := options.ToContext(context.Background(), opts2)
 
-		instanceTypes2, err := provider.List(ctx2, 100)
+		instanceTypes2, err := provider.List(ctx2, 100, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 15, len(instanceTypes2), "should return 15 instance types")
 	})
@@ -428,7 +468,7 @@ func TestKwokInstanceTypesStaticProviderList(t *testing.T) {
 		opts := &options.Options{Zone: "us-west-1c", Region: "us-west-1"}
 		ctx := options.ToContext(context.Background(), opts)
 
-		instanceTypes, err := provider.List(ctx, 50)
+		instanceTypes, err := provider.List(ctx, 50, nil)
 		require.NoError(t, err)
 
 		for _, it := range instanceTypes {

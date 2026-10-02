@@ -4,6 +4,8 @@ import (
 	"context"
 
 	corecloudprovider "sigs.k8s.io/karpenter/pkg/cloudprovider"
+
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
 )
 
 // MockKwokInstanceTypesProvider is a mock implementation of KwokInstanceTypesProvider for testing.
@@ -12,7 +14,7 @@ type MockKwokInstanceTypesProvider struct {
 }
 
 // List returns the mock instance types.
-func (m *MockKwokInstanceTypesProvider) List(ctx context.Context, diskSize int64) ([]*corecloudprovider.InstanceType, error) {
+func (m *MockKwokInstanceTypesProvider) List(ctx context.Context, diskSize int64, kubelet *v1alpha1.KubeletConfiguration) ([]*corecloudprovider.InstanceType, error) {
 	return m.instances, nil
 }
 

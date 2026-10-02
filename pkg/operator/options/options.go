@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 
 	"go.uber.org/multierr"
 	coreoptions "sigs.k8s.io/karpenter/pkg/operator/options"
@@ -18,19 +19,20 @@ func init() {
 }
 
 type Options struct {
-	ClusterName     string
-	ClusterEndpoint string
-	JoinToken       string
-	VsphereEndpoint string
-	VsphereUsername string
-	VspherePassword string
-	VsphereFolder   string
-	VsphereDC       string
-	VsphereInsecure bool
-	KubeDistro      string
-	KubeVersion     string
-	Zone            string
-	Region          string
+	ClusterName             string
+	ClusterEndpoint         string
+	JoinToken               string
+	VsphereEndpoint         string
+	VsphereUsername         string
+	VspherePassword         string
+	VsphereFolder           string
+	VsphereDC               string
+	VsphereInsecure         bool
+	KubeDistro              string
+	KubeVersion             string
+	Zone                    string
+	Region                  string
+	VMMemoryOverheadPercent float64
 }
 
 type optionsKey struct{}
@@ -48,6 +50,7 @@ func (o *Options) AddFlags(fs *coreoptions.FlagSet) {
 	fs.BoolVar(&o.VsphereInsecure, "vsphere-insecure", env.WithDefaultBool("GOVC_INSECURE", false), "[REQUIRED] The vSphere insecure flag to use for the vSphere provider")
 	fs.StringVar(&o.Zone, "zone", env.WithDefaultString("ZONE", ""), "[REQUIRED] The topology zone to advertise for per-zone provisioning")
 	fs.StringVar(&o.Region, "region", env.WithDefaultString("REGION", ""), "[REQUIRED] The topology region to advertise for per-region provisioning")
+	fs.Float64Var(&o.VMMemoryOverheadPercent, "vm-memory-overhead-percent", withDefaultFloat64("VM_MEMORY_OVERHEAD_PERCENT", 0.075), "The VM memory overhead as a percent that will be subtracted from the total memory for all instance types. The value of 0.075 equals 7.5%")
 }
 
 func (o *Options) ToContext(ctx context.Context) context.Context {
@@ -101,7 +104,15 @@ func (o *Options) Validate() error {
 		o.validateClusterName(),
 		o.validateZone(),
 		o.validateRegion(),
+		o.validateVMMemoryOverheadPercent(),
 	)
+}
+
+func (o *Options) validateVMMemoryOverheadPercent() error {
+	if o.VMMemoryOverheadPercent < 0 || o.VMMemoryOverheadPercent >= 1 {
+		return fmt.Errorf("vm-memory-overhead-percent must be >= 0 and < 1, got %v", o.VMMemoryOverheadPercent)
+	}
+	return nil
 }
 
 func (o *Options) validateRegion() error {
@@ -165,4 +176,16 @@ func (o *Options) validateKubeDistro() error {
 		return errors.New("--kube-distro option requires --kube-version")
 	}
 	return nil
+}
+
+func withDefaultFloat64(key string, def float64) float64 {
+	val, ok := os.LookupEnv(key)
+	if !ok {
+		return def
+	}
+	f, err := strconv.ParseFloat(val, 64)
+	if err != nil {
+		return def
+	}
+	return f
 }
