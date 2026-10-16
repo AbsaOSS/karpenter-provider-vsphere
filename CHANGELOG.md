@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.2.2](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v3.2.1...v3.2.2) (2026-10-16)
+
+
+### Bug Fixes
+
+* Add zone, region settings as helmchart value ([879f0c4](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/879f0c41534bafa173a79ed846d2923de6ce6738))
+
 ## [3.2.1](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v3.2.0...v3.2.1) (2026-10-16)
 
 
