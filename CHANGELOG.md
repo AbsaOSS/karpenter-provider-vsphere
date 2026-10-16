@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.2.1](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v3.2.0...v3.2.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* drop CEL validation rules ([0b01e4a](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/0b01e4a400df569ab5a753ef9544b0a38c0e1c70))
+
 ## [3.2.0](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v3.1.0...v3.2.0) (2026-10-16)
 
 
