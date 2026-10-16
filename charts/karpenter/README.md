@@ -66,6 +66,8 @@ A Helm chart for Karpenter, an open-source node provisioning project built for K
 | settings | object | `{"clusterName":"","preferencePolicy":"Respect","vmMemoryOverheadPercent":0.075}` | Global Settings to configure Karpenter |
 | settings.clusterName | string | `""` | Cluster name. |
 | settings.preferencePolicy | string | `"Respect"` | How the Karpenter scheduler should treat preferences. Preferences include preferredDuringSchedulingIgnoreDuringExecution node and pod affinities/anti-affinities and ScheduleAnyways topologySpreadConstraints. Can be one of 'Ignore' and 'Respect' |
+| settings.zone | string | `""` | VSphere zone |
+| settings.region | string | `""` | VSphere region |
 | settings.vmMemoryOverheadPercent | float | `0.075` | The VM memory overhead as a percent that will be subtracted from the total memory for all instance types. The value of `0.075` equals to 7.5%. |
 | strategy | object | `{"rollingUpdate":{"maxUnavailable":1}}` | Strategy for updating the pod. |
 | terminationGracePeriodSeconds | string | `nil` | Override the default termination grace period for the pod. |
