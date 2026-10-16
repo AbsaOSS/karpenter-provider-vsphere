@@ -12,7 +12,7 @@ type MockKwokInstanceTypesProvider struct {
 }
 
 // List returns the mock instance types.
-func (m *MockKwokInstanceTypesProvider) List(ctx context.Context, diskSize int64) ([]*corecloudprovider.InstanceType, error) {
+func (m *MockKwokInstanceTypesProvider) List(ctx context.Context) ([]*corecloudprovider.InstanceType, error) {
 	return m.instances, nil
 }
 

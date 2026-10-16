@@ -1,11 +1,19 @@
 package userdata
 
 import (
+	"bytes"
+	"compress/gzip"
+	"encoding/base64"
+	"encoding/json"
+	"io"
+	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v3"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -233,4 +241,124 @@ func TestGetCommon_OmitsNodeTaintKeyWhenNoTaints(t *testing.T) {
 	require.Len(t, config.Files, 1)
 
 	assert.NotContains(t, config.Files[0].Content, "node-taint")
+}
+
+const testKubeletConfig = `apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+maxPods: 110
+kubeReserved:
+    cpu: 80m
+    memory: 1465Mi
+`
+
+func initDataWithKubelet() *InitData {
+	withKubelet := *initData
+	withKubelet.KubeletConfig = testKubeletConfig
+	return &withKubelet
+}
+
+func TestGetCommon_WritesKubeletConfig(t *testing.T) {
+	config, err := getCommon(initDataWithKubelet(), "install-cmd")
+	require.NoError(t, err)
+	require.Len(t, config.Files, 2)
+
+	assert.Equal(t, "/etc/rancher/rke2/config.yaml", config.Files[0].Path)
+	assert.Equal(t, RKE2KubeletConfigPath, config.Files[1].Path)
+	assert.Equal(t, "0644", config.Files[1].Permissions)
+	assert.Equal(t, strings.TrimSuffix(testKubeletConfig, "\n"), config.Files[1].Content)
+}
+
+func TestRKE2CloudConfigWithKubeletConfig(t *testing.T) {
+	for _, distro := range []string{"rke2", "rke2airgapped"} {
+		t.Run(distro, func(t *testing.T) {
+			gen, renderer, err := (&Factory{}).Build(&InitType{
+				Distro: v1alpha1.Distro(distro),
+				Format: v1alpha1.UserDataTypeCloudConfig,
+			})
+			require.NoError(t, err)
+			data, err := gen.Generate(initDataWithKubelet())
+			require.NoError(t, err)
+			res, err := renderer.Render(data, "")
+			require.NoError(t, err)
+
+			assert.Contains(t, string(res), `  - path: /var/lib/rancher/rke2/agent/etc/kubelet.conf.d/50-karpenter.conf
+    permissions: "0644"
+    content: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      maxPods: 110
+      kubeReserved:
+          cpu: 80m
+          memory: 1465Mi
+`)
+
+			// The rendered user data must still be valid cloud-config YAML.
+			var parsed DistroConfig
+			require.NoError(t, yaml.Unmarshal(res, &parsed))
+			require.Len(t, parsed.Files, 2)
+			assert.Equal(t, testKubeletConfig, parsed.Files[1].Content)
+		})
+	}
+}
+
+func TestRKE2IgnitionWithKubeletConfig(t *testing.T) {
+	gen, renderer, err := (&Factory{}).Build(&InitType{
+		Distro: v1alpha1.Distro("rke2"),
+		Format: v1alpha1.UserDataTypeIgnition,
+	})
+	require.NoError(t, err)
+	data, err := gen.Generate(initDataWithKubelet())
+	require.NoError(t, err)
+	res, err := renderer.Render(data, "")
+	require.NoError(t, err)
+
+	var ignition struct {
+		Storage struct {
+			Files []struct {
+				Path     string `json:"path"`
+				Contents struct {
+					Compression string `json:"compression"`
+					Source      string `json:"source"`
+				} `json:"contents"`
+			} `json:"files"`
+		} `json:"storage"`
+	}
+	require.NoError(t, json.Unmarshal(res, &ignition))
+
+	found := false
+	for _, f := range ignition.Storage.Files {
+		if f.Path != RKE2KubeletConfigPath {
+			continue
+		}
+		found = true
+		assert.Equal(t, testKubeletConfig, decodeIgnitionSource(t, f.Contents.Source, f.Contents.Compression))
+	}
+	require.True(t, found, "kubelet config file should be in the ignition config")
+}
+
+// decodeIgnitionSource decodes an Ignition data URL. Butane picks whichever encoding is
+// shortest (plain, base64 or gzip+base64), so the test must handle all of them.
+func decodeIgnitionSource(t *testing.T, source, compression string) string {
+	t.Helper()
+	meta, payload, ok := strings.Cut(strings.TrimPrefix(source, "data:"), ",")
+	require.True(t, ok, "not a data URL: %s", source)
+
+	raw := []byte(payload)
+	if strings.HasSuffix(meta, ";base64") {
+		decoded, err := base64.StdEncoding.DecodeString(payload)
+		require.NoError(t, err)
+		raw = decoded
+	} else {
+		unescaped, err := url.PathUnescape(payload)
+		require.NoError(t, err)
+		raw = []byte(unescaped)
+	}
+	if compression == "gzip" {
+		reader, err := gzip.NewReader(bytes.NewReader(raw))
+		require.NoError(t, err)
+		unzipped, err := io.ReadAll(reader)
+		require.NoError(t, err)
+		raw = unzipped
+	}
+	return string(raw)
 }

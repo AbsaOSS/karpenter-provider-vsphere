@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/operator/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	karpv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 )
 
@@ -344,7 +346,7 @@ func TestEnrichToInstanceType(t *testing.T) {
 		VCPU:   1,
 	}
 
-	instanceType := enrichToInstanceType(profile, "linux", "amd64", 100, "zone-a", "zone-b", 110)
+	instanceType := enrichToInstanceType(profile, "linux", "amd64", "zone-a", "zone-b", 110, 0)
 
 	t.Run("has correct name", func(t *testing.T) {
 		assert.Equal(t, "c-2x", instanceType.Name)
@@ -372,7 +374,7 @@ func TestEnrichToInstanceType(t *testing.T) {
 		assert.NotNil(t, instanceType.Capacity[corev1.ResourceCPU])
 		assert.NotNil(t, instanceType.Capacity[corev1.ResourceMemory])
 		assert.NotNil(t, instanceType.Capacity[corev1.ResourcePods])
-		assert.NotNil(t, instanceType.Capacity[corev1.ResourceEphemeralStorage])
+		assert.NotContains(t, instanceType.Capacity, corev1.ResourceEphemeralStorage, "disk size comes from the NodeClass")
 	})
 
 	t.Run("has one offering with zone and region", func(t *testing.T) {
@@ -405,6 +407,31 @@ func TestEnrichToInstanceType(t *testing.T) {
 	})
 }
 
+func TestEnrichToInstanceTypeResources(t *testing.T) {
+	// m-9x: 4 vCPU, 32Gi
+	profile := &instanceProfile{Family: InstanceFamilyMemory, Size: 9, VCPU: 4}
+
+	instanceType := enrichToInstanceType(profile, "linux", "amd64", "zone-a", "region-a", 110, 0.075)
+
+	// memory: 32768Mi - ceil(32768 * 0.075) = 30310Mi
+	assertQuantity(t, "4", instanceType.Capacity[corev1.ResourceCPU])
+	assertQuantity(t, "30310Mi", instanceType.Capacity[corev1.ResourceMemory])
+	assertQuantity(t, "110", instanceType.Capacity[corev1.ResourcePods])
+
+	// the requirements keep the VM's configured size, which is what the VM is created with
+	assert.Equal(t, []string{"4"}, instanceType.Requirements.Get(v1alpha1.LabelInstanceCPU).Values())
+	assert.Equal(t, []string{"32768"}, instanceType.Requirements.Get(v1alpha1.LabelInstanceMemory).Values())
+
+	// The catalog only describes resources. The cloud provider adds the overhead.
+	require.NotNil(t, instanceType.Overhead)
+	assert.Empty(t, instanceType.Overhead.Total())
+}
+
+func assertQuantity(t *testing.T, want string, got resource.Quantity) {
+	t.Helper()
+	assert.Zero(t, got.Cmp(resource.MustParse(want)), "got %s, want %s", got.String(), want)
+}
+
 func TestKwokInstanceTypesStaticProviderList(t *testing.T) {
 	provider := KwokInstanceTypesStaticProvider{}
 
@@ -412,14 +439,14 @@ func TestKwokInstanceTypesStaticProviderList(t *testing.T) {
 		opts1 := &options.Options{Zone: "us-west-1a", Region: "us-west-1"}
 		ctx1 := options.ToContext(context.Background(), opts1)
 
-		instanceTypes1, err := provider.List(ctx1, 50)
+		instanceTypes1, err := provider.List(ctx1)
 		require.NoError(t, err)
 		assert.Equal(t, 15, len(instanceTypes1), "should return 15 instance types (5 sizes * 3 families)")
 
 		opts2 := &options.Options{Zone: "us-west-1b", Region: "us-west-1"}
 		ctx2 := options.ToContext(context.Background(), opts2)
 
-		instanceTypes2, err := provider.List(ctx2, 100)
+		instanceTypes2, err := provider.List(ctx2)
 		require.NoError(t, err)
 		assert.Equal(t, 15, len(instanceTypes2), "should return 15 instance types")
 	})
@@ -428,7 +455,7 @@ func TestKwokInstanceTypesStaticProviderList(t *testing.T) {
 		opts := &options.Options{Zone: "us-west-1c", Region: "us-west-1"}
 		ctx := options.ToContext(context.Background(), opts)
 
-		instanceTypes, err := provider.List(ctx, 50)
+		instanceTypes, err := provider.List(ctx)
 		require.NoError(t, err)
 
 		for _, it := range instanceTypes {

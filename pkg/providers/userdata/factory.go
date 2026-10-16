@@ -14,6 +14,7 @@ type InitData struct {
 	Taints             []corev1.Taint
 	NodeName           string
 	AdditionalUserData string
+	KubeletConfig      string
 }
 
 type InitType struct {
@@ -21,7 +22,7 @@ type InitType struct {
 	Distro v1alpha1.Distro
 }
 
-func NewInitData(taints []corev1.Taint, nodeName, endpoint, token, kubeversion string, userdata string) *InitData {
+func NewInitData(taints []corev1.Taint, nodeName, endpoint, token, kubeversion string, userdata string, kubeletConfig string) *InitData {
 	return &InitData{
 		Taints:             taints,
 		NodeName:           nodeName,
@@ -29,6 +30,7 @@ func NewInitData(taints []corev1.Taint, nodeName, endpoint, token, kubeversion s
 		KubeVersion:        kubeversion,
 		Token:              token,
 		AdditionalUserData: userdata,
+		KubeletConfig:      kubeletConfig,
 	}
 }
 

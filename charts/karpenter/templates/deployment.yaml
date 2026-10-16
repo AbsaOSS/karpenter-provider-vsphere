@@ -145,6 +145,8 @@ spec:
               value: "{{ required "Chart cannot be installed without a valid settings.vsphereFolder!" (tpl .Values.settings.vsphereFolder .) }}"
             - name: VSPHERE_DC
               value: "{{ required "Chart cannot be installed without a valid settings.vsphereDC!" (tpl .Values.settings.vsphereDC .) }}"
+            - name: VM_MEMORY_OVERHEAD_PERCENT
+              value: "{{ .Values.settings.vmMemoryOverheadPercent}}"
           {{- with .Values.controller.env }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
