@@ -29,7 +29,7 @@ jobs:
           restore-keys: |
             go-build.cache-{runner_os}-{working_directory}-{interval_number}-
       - name: Install Task
-        uses: go-task/setup-task@v2
+        uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
       - name: run test task
         run: |
           task -t taskfile.yaml test

@@ -44,7 +44,7 @@ jobs:
         with:
           go-version-file: ./go.mod
       - name: setup ko
-        uses: ko-build/setup-ko@v0.8
+        uses: ko-build/setup-ko@d982fec422852203cfb2053a8ec6ad302280d04d # v0.8
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
       - name: Login to ghcr.io
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
