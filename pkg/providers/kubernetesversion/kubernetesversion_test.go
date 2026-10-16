@@ -65,7 +65,7 @@ func TestKubeServerVersions(t *testing.T) {
 			defer controller.Finish()
 
 			q := mocks.NewMockInterface(controller)
-			d := mocks.NewMockDiscoveryInterface(controller)
+			d := mocks.NewMockDiscoveryInterfaces(controller)
 			d.EXPECT().ServerVersion().Return(test.version, test.discoveryError).AnyTimes()
 
 			q.EXPECT().Discovery().Return(d).AnyTimes()
