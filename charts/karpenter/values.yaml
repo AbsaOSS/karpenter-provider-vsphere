@@ -157,6 +157,10 @@ logErrorOutputPaths:
 # -- Global Settings to configure Karpenter
 settings:
   # -- How the Karpenter scheduler should treat preferences. Preferences include preferredDuringSchedulingIgnoreDuringExecution
+  # -- VSphere zone
+  zone: ""
+  # -- VSphere region
+  region: ""
   # node and pod affinities/anti-affinities and ScheduleAnyways topologySpreadConstraints. Can be one of 'Ignore' and 'Respect'
   preferencePolicy: Respect
   # -- Cluster name.

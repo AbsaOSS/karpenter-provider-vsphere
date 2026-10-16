@@ -135,6 +135,14 @@ spec:
               value: "{{ required "Chart cannot be installed without a valid settings.kubeDistro!" (tpl .Values.settings.kubeDistro .) }}"
             - name: CLUSTER_ENDPOINT
               value: "{{ required "Chart cannot be installed without a valid settings.kubeApiAddress!" (tpl .Values.settings.kubeApiAddress .) }}"
+          {{- with .Values.settings.zone }}
+            - name: ZONE
+              value: "{{ . }}"
+          {{- end }}
+          {{- with .Values.settings.region }}
+            - name: REGION
+              value: "{{ . }}"
+          {{- end }}
           {{- with .Values.settings.vsphereInsecure }}
             - name: GOVC_INSECURE
               value: "{{ . }}"
