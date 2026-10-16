@@ -42,6 +42,7 @@ func main() {
 		undecoratedCloudProvider,
 		clusterState,
 		op.InstanceTypeStore,
+		op.PredictionStore,
 	)...).
 		WithControllers(ctx, controllers.NewControllers(
 			ctx,
