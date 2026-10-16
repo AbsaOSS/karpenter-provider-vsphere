@@ -12,7 +12,7 @@ require (
 	github.com/mitchellh/hashstructure/v2 v2.0.2
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/samber/lo v1.53.0
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.1
 	github.com/vmware/govmomi v0.55.1
 	go.uber.org/mock v0.6.0
 	go.uber.org/multierr v1.11.0
