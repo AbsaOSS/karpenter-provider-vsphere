@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.2.3](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v3.2.2...v3.2.3) (2026-10-16)
+
+
+### Bug Fixes
+
+* Sync nodepool crd ([8a2daaf](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/8a2daaf41bcc017a41d32787211728d081490db1))
+
 ## [3.2.2](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v3.2.1...v3.2.2) (2026-10-16)
 
 
