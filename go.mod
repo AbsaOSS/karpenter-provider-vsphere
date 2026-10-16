@@ -6,7 +6,7 @@ require (
 	github.com/awslabs/operatorpkg v0.0.0-20260708223819-4da4c353c5fa
 	github.com/blang/semver/v4 v4.0.0
 	github.com/coreos/butane v0.29.0
-	github.com/coreos/ignition/v2 v2.26.0
+	github.com/coreos/ignition/v2 v2.28.0
 	github.com/go-logr/zapr v1.3.0
 	github.com/google/gnostic-models v0.7.1
 	github.com/mitchellh/hashstructure/v2 v2.0.2
