@@ -1,6 +1,28 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "config:base",
+    "helpers:pinGitHubActionDigestsToSemver"
+  ],
+  "labels": ["dependencies"],
+  "packageRules": [
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions dependencies",
+      "groupSlug": "github-actions-all"
+    },
+    {
+      "description": "Automerge GO minor and patch dependencies",
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["minor","patch"],
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "description": "Keep Kubernetes dependencies together",
+      "extends": ["monorepo:kubernetes"],
+      "matchUpdateTypes": ["minor","patch"],
+      "groupName": "Kubernetes dependencies"
+    }
   ]
 }
