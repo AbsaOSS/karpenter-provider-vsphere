@@ -11,7 +11,7 @@ import (
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/operator/options"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/instance"
-	kwok "github.com/absaoss/karpenter-provider-vsphere/pkg/providers/kwok"
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/kwok"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/overhead"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/utils"
 	"github.com/awslabs/operatorpkg/status"
@@ -54,6 +54,9 @@ func (c *CloudProvider) GetSupportedNodeClasses() []status.Object {
 	return []status.Object{&v1alpha1.VsphereNodeClass{}}
 }
 
+func (c *CloudProvider) Reboot(ctx context.Context, claim *karpv1.NodeClaim, operationID string) error {
+	return cloudprovider.NewNodeRebootNotImplementedError()
+}
 func New(instanceProvider instance.Provider, kubeClient client.Client, kwokInstanceTypesProvider kwok.KwokInstanceTypesProvider) *CloudProvider {
 	return &CloudProvider{
 		instanceProvider:          instanceProvider,
@@ -93,11 +96,11 @@ func (c *CloudProvider) Create(ctx context.Context, nodeClaim *karpv1.NodeClaim)
 	if len(instanceTypes) == 0 {
 		return nil, cloudprovider.NewInsufficientCapacityError(fmt.Errorf("all requested instance types were unavailable during launch"))
 	}
-	instance, instanceType, err := c.instanceProvider.Create(ctx, nodeClass, nodeClaim, instanceTypes)
+	inst, instanceType, err := c.instanceProvider.Create(ctx, nodeClass, nodeClaim, instanceTypes)
 	if err != nil {
 		return nil, cloudprovider.NewCreateError(fmt.Errorf("creating instance failed, %w", err), CreateInstanceFailedReason, err.Error())
 	}
-	claim := c.instanceToNodeClaim(instance, instanceType)
+	claim := c.instanceToNodeClaim(inst, instanceType)
 
 	return claim, nil
 }
@@ -117,8 +120,9 @@ func (c *CloudProvider) instanceToNodeClaim(i *instance.Instance, instanceType *
 
 		nodeClaim.Status.Capacity = lo.PickBy(instanceType.Capacity, resourceFilter)
 		nodeClaim.Status.Allocatable = lo.PickBy(instanceType.Allocatable(), resourceFilter)
+
+		labels[corev1.LabelInstanceTypeStable] = instanceType.Name
 	}
-	labels[corev1.LabelInstanceTypeStable] = instanceType.Name
 	labels[karpv1.CapacityTypeLabelKey] = karpv1.CapacityTypeOnDemand
 
 	//TODO: Figure out TopologyZone label
@@ -151,33 +155,16 @@ func (c *CloudProvider) Get(ctx context.Context, id string) (*karpv1.NodeClaim, 
 		return nil, fmt.Errorf("getting instance ID, %w", err)
 	}
 	ctx = log.IntoContext(ctx, log.FromContext(ctx).WithValues("id", id))
-	instance, err := c.instanceProvider.Get(ctx, id)
+	inst, err := c.instanceProvider.Get(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("getting instance, %w", err)
 	}
-	instanceType, err := c.resolveInstanceTypeFromInstance(ctx, instance)
+	instanceType, err := c.resolveInstanceTypeFromInstance(ctx, inst)
 	if err != nil {
 		return nil, fmt.Errorf("resolving instance type, %w", err)
 	}
-	return c.instanceToNodeClaim(instance, instanceType), nil
+	return c.instanceToNodeClaim(inst, instanceType), nil
 }
-
-//func (c *CloudProvider) resolveNodeClassFromInstance(ctx context.Context, instance *instance.Instance) (*v1alpha1.VsphereNodeClass, error) {
-//	name, ok := instance.Tags[v1alpha1.LabelNodeClass]
-//	if !ok {
-//		return nil, errors.NewNotFound(schema.GroupResource{Group: apis.Group, Resource: "ec2nodeclasses"}, "")
-//	}
-//	nc := &v1alpha1.VsphereNodeClass{}
-//	if err := c.kubeClient.Get(ctx, types.NamespacedName{Name: name}, nc); err != nil {
-//		return nil, fmt.Errorf("resolving ec2nodeclass, %w", err)
-//	}
-//	if !nc.DeletionTimestamp.IsZero() {
-//		// For the purposes of NodeClass CloudProvider resolution, we treat deleting NodeClasses as NotFound,
-//		// but we return a different error message to be clearer to users
-//		return nil, newTerminatingNodeClassError(nc.Name)
-//	}
-//	return nc, nil
-//}
 
 func (c *CloudProvider) List(ctx context.Context) ([]*karpv1.NodeClaim, error) {
 	instances, err := c.instanceProvider.List(ctx)
@@ -185,13 +172,13 @@ func (c *CloudProvider) List(ctx context.Context) ([]*karpv1.NodeClaim, error) {
 	if err != nil {
 		return nil, fmt.Errorf("listing instances, %w", err)
 	}
-	for _, instance := range instances {
-		instanceType, err := c.resolveInstanceTypeFromInstance(ctx, instance)
+	for _, inst := range instances {
+		instanceType, err := c.resolveInstanceTypeFromInstance(ctx, inst)
 		if err != nil {
 			log.FromContext(ctx).Error(err, "failed to resolve instance type")
 			return nil, fmt.Errorf("resolving instance type, %w", err)
 		}
-		nodeClaim := c.instanceToNodeClaim(instance, instanceType)
+		nodeClaim := c.instanceToNodeClaim(inst, instanceType)
 		log.FromContext(ctx).Info("converted instance to nodeclaim", "nodeClaimName", nodeClaim.Name)
 		nodeClaims = append(nodeClaims, nodeClaim)
 	}
