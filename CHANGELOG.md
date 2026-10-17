@@ -1,5 +1,29 @@
 # Changelog
 
+## [3.2.4](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v3.2.3...v3.2.4) (2026-10-17)
+
+
+### Bug Fixes
+
+* **deps:** update github.com/awslabs/operatorpkg digest to 855c7d0 ([16c1c0e](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/16c1c0e0571d7a4c6581527cf96d39d59971e94f))
+* **deps:** update kubernetes dependencies to v0.37.1 ([8a8b1f4](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/8a8b1f4b616908014a8506fd4ba89b6f2f23ba09))
+* **deps:** update module github.com/coreos/ignition/v2 to v2.28.0 ([#119](https://github.com/AbsaOSS/karpenter-provider-vsphere/issues/119)) ([070d421](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/070d421bcb405c5c7161e27943f3a50f0c20eb47))
+* **deps:** update module github.com/stretchr/testify to v1.12.1 ([#120](https://github.com/AbsaOSS/karpenter-provider-vsphere/issues/120)) ([c787d61](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/c787d61b913b1aca30473b5ded5a1bf555318e3d))
+* **deps:** update module github.com/vmware/govmomi to v0.56.0 ([#121](https://github.com/AbsaOSS/karpenter-provider-vsphere/issues/121)) ([c4b0a87](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/c4b0a870f9fe70a6d40bb94b73257e5d9404bb79))
+* **deps:** update module sigs.k8s.io/controller-runtime to v0.25.2 ([#122](https://github.com/AbsaOSS/karpenter-provider-vsphere/issues/122)) ([5ce2f7b](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/5ce2f7b45bf3b8c73528af9c47b2c1d5a8fe92ee))
+* **deps:** update module sigs.k8s.io/karpenter to v1.15.0 ([555bf58](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/555bf5864ed15276300296950dd7436791da585e))
+* GenerateNodeClaimName returning empty name ([8dffe98](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/8dffe98a375274cf8b7e0aad21f106021f0b0944))
+
+
+### Miscellaneous Chores
+
+* configure Renovate ([b038cd7](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/b038cd7b1de105454a9a399eb9acc1553207c032))
+* **deps:** update azure/setup-helm action to v4.3.1 ([6bcba8a](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/6bcba8af25d1fbae00e5d82ac8b5d73b7595bc1b))
+* **deps:** update github actions dependencies ([972a8d0](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/972a8d00765381095a7fcc81bd6db05e310af67b))
+* **deps:** update github actions dependencies ([bea47f0](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/bea47f044c9e56e79fe40f14df001249b87c1598))
+* **fix:** build against karpenter 1.15 ([78f713e](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/78f713ef695226ad577dd4c11010b96ccf3dd92a))
+* regenerate mocks ([a3bc936](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/a3bc936e154732267b455efcba4429311e59831f))
+
 ## [3.2.3](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v3.2.2...v3.2.3) (2026-10-16)
 
 
