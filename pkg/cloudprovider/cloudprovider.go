@@ -146,7 +146,7 @@ func (c *CloudProvider) instanceToNodeClaim(i *instance.Instance, instanceType *
 }
 
 func GenerateNodeClaimName(vmName, clusterName string) string {
-	return strings.TrimLeft(fmt.Sprintf("%s-karp-", clusterName), vmName)
+	return strings.TrimPrefix(vmName, fmt.Sprintf("%s-karp-", clusterName))
 }
 
 func (c *CloudProvider) Get(ctx context.Context, id string) (*karpv1.NodeClaim, error) {

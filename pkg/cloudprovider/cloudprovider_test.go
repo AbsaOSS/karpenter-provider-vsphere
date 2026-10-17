@@ -25,7 +25,7 @@ func TestInstanceToNodeClaim(t *testing.T) {
 
 	i := instancefixture.New().
 		WithID("vm-1234").
-		WithName("worker-1234").
+		WithName("test-cluster-karp-default-nodepool-worker-1234").
 		WithImage("ubuntu-2404").
 		WithState("poweredOn").
 		WithLaunchTime(launchTime).
@@ -53,6 +53,7 @@ func TestInstanceToNodeClaim(t *testing.T) {
 		)
 
 		assert.Equal(t, launchTime, nodeClaim.CreationTimestamp.Time)
+		assert.Equal(t, "default-nodepool-worker-1234", nodeClaim.Name)
 		assert.Nil(t, nodeClaim.DeletionTimestamp)
 		assert.NotNil(t, nodeClaim.Labels)
 		assert.NotNil(t, nodeClaim.Annotations)
