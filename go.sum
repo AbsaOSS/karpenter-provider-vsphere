@@ -12,6 +12,8 @@ github.com/awslabs/operatorpkg v0.0.0-20261002163259-5e8ed3699dea h1:MenUDyloRXU
 github.com/awslabs/operatorpkg v0.0.0-20261002163259-5e8ed3699dea/go.mod h1:G/D6aERpu0RWYGZC8wrAfrtEI6nWHAQIkXmTGnNn2jM=
 github.com/awslabs/operatorpkg v0.0.0-20261006163503-855c7d06c363 h1:1ZOW8m+Oub8mZuNiVBi6zGB9flghqH3hA3xt0saEWjY=
 github.com/awslabs/operatorpkg v0.0.0-20261006163503-855c7d06c363/go.mod h1:G/D6aERpu0RWYGZC8wrAfrtEI6nWHAQIkXmTGnNn2jM=
+github.com/awslabs/operatorpkg v0.0.0-20261019155633-4e7ba6e9cd42 h1:mBk4xyK8GsdjgswgDef+vM6rvbF+w2MfqIR2KlIO/cY=
+github.com/awslabs/operatorpkg v0.0.0-20261019155633-4e7ba6e9cd42/go.mod h1:G/D6aERpu0RWYGZC8wrAfrtEI6nWHAQIkXmTGnNn2jM=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/blang/semver/v4 v4.0.0 h1:1PFHFE6yCCTv8C1TeyNNarDzntLi7wMI5i/pzqYIsAM=
