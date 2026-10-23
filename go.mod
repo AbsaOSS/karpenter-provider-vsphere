@@ -3,7 +3,7 @@ module github.com/absaoss/karpenter-provider-vsphere
 go 1.26.9
 
 require (
-	github.com/awslabs/operatorpkg v0.0.0-20261006163503-855c7d06c363
+	github.com/awslabs/operatorpkg v0.0.0-20261019155633-4e7ba6e9cd42
 	github.com/blang/semver/v4 v4.0.0
 	github.com/coreos/butane v0.29.0
 	github.com/coreos/ignition/v2 v2.28.0
