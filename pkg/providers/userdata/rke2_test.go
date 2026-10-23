@@ -131,7 +131,7 @@ func TestRKE2Ignition(t *testing.T) {
 
 	res, err := par.Render(data, initData.AdditionalUserData)
 	assert.Nil(t, err)
-	assert.Equal(t, string(expectedRKE2DefaultIgnition), string(res))
+	assert.Equal(t, normalizeIgnition(t, expectedRKE2DefaultIgnition), normalizeIgnition(t, res))
 
 }
 func TestRKE2AirGapIgnition(t *testing.T) {
@@ -149,7 +149,7 @@ func TestRKE2AirGapIgnition(t *testing.T) {
 
 	res, err := par.Render(data, initData.AdditionalUserData)
 	assert.Nil(t, err)
-	assert.Equal(t, string(expectedRKE2AirGapDefaultIgnition), string(res))
+	assert.Equal(t, normalizeIgnition(t, expectedRKE2AirGapDefaultIgnition), normalizeIgnition(t, res))
 }
 
 func TestRKE2CloudConfig(t *testing.T) {
@@ -213,7 +213,7 @@ func TestRKE2IgnitionWithExtraButane(t *testing.T) {
 	assert.Nil(t, err)
 	res, err := par.Render(data, extraIgnition)
 	assert.Nil(t, err)
-	assert.Equal(t, string(expectedRKE2IgnitionWithExtra), string(res))
+	assert.Equal(t, normalizeIgnition(t, expectedRKE2IgnitionWithExtra), normalizeIgnition(t, res))
 }
 
 // RKE2 expects the singular "node-taint" key (see
@@ -334,6 +334,29 @@ func TestRKE2IgnitionWithKubeletConfig(t *testing.T) {
 		assert.Equal(t, testKubeletConfig, decodeIgnitionSource(t, f.Contents.Source, f.Contents.Compression))
 	}
 	require.True(t, found, "kubelet config file should be in the ignition config")
+}
+
+// normalizeIgnition decodes every file's contents so the comparison doesn't depend on the
+// gzip byte output, which differs between Go versions.
+func normalizeIgnition(t *testing.T, raw []byte) string {
+	t.Helper()
+	var doc map[string]any
+	require.NoError(t, json.Unmarshal(raw, &doc))
+	storage, _ := doc["storage"].(map[string]any)
+	files, _ := storage["files"].([]any)
+	for _, f := range files {
+		contents, _ := f.(map[string]any)["contents"].(map[string]any)
+		if contents == nil {
+			continue
+		}
+		source, _ := contents["source"].(string)
+		compression, _ := contents["compression"].(string)
+		contents["source"] = decodeIgnitionSource(t, source, compression)
+		contents["compression"] = ""
+	}
+	out, err := json.Marshal(doc)
+	require.NoError(t, err)
+	return string(out)
 }
 
 // decodeIgnitionSource decodes an Ignition data URL. Butane picks whichever encoding is
