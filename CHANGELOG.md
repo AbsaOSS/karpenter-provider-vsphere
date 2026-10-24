@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.2.5](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v3.2.4...v3.2.5) (2026-10-24)
+
+
+### Bug Fixes
+
+* **deps:** update github.com/awslabs/operatorpkg digest to 4e7ba6e ([#124](https://github.com/AbsaOSS/karpenter-provider-vsphere/issues/124)) ([0e0e699](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/0e0e699c42e09911a66e0dcf26c97ad2efd88169))
+* **deps:** update module github.com/vmware/govmomi to v0.56.1 ([#129](https://github.com/AbsaOSS/karpenter-provider-vsphere/issues/129)) ([0f924a3](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/0f924a3f00bac9f496e2ad42f175139e2c379ccd))
+* **deps:** update module sigs.k8s.io/karpenter to v1.15.1 ([#127](https://github.com/AbsaOSS/karpenter-provider-vsphere/issues/127)) ([19fbdb0](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/19fbdb0fff2512a9378ed0c6c03a84791fccdad6))
+
+
+### Miscellaneous Chores
+
+* **deps:** update docker/login-action action to v4.7.0 ([#128](https://github.com/AbsaOSS/karpenter-provider-vsphere/issues/128)) ([fa75472](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/fa75472555fa1c3742e73cf930cd36d1491fb395))
+
 ## [3.2.4](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v3.2.3...v3.2.4) (2026-10-17)
 
 
