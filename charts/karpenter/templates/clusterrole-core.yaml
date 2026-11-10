@@ -29,6 +29,12 @@ metadata:
   {{- end }}
 rules:
   # Read
+  - apiGroups: ["autoscaling.x-k8s.io"]
+    resources: ["capacitybuffers", "capacitybuffers/status"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["podtemplates"]
+    verbs: ["get", "list", "watch"]
   - apiGroups: ["karpenter.sh"]
     resources: ["nodepools", "nodepools/status", "nodeclaims", "nodeclaims/status"]
     verbs: ["get", "list", "watch"]
@@ -48,6 +54,9 @@ rules:
     resources: ["events"]
     verbs: ["get", list, "watch"]
   # Write
+  - apiGroups: ["autoscaling.x-k8s.io"]
+    resources: ["capacitybuffers/status"]
+    verbs: ["update", "patch"]
   - apiGroups: ["karpenter.sh"]
     resources: ["nodeclaims", "nodeclaims/status"]
     verbs: ["create", "delete", "update", "patch"]
