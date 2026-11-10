@@ -156,6 +156,20 @@ logErrorOutputPaths:
   - stderr
 # -- Global Settings to configure Karpenter
 settings:
+  # -- Feature Gate configuration values. These defaults match Karpenter core.
+  featureGates:
+    # -- Enables node repair (ALPHA).
+    nodeRepair: false
+    # -- Enables static capacity provisioning with NodePool spec.replicas (ALPHA).
+    staticCapacity: false
+    # -- Enables CapacityBuffer support for pre-provisioning spare capacity (ALPHA).
+    capacityBuffer: false
+    # -- Allows drift to terminate a node before launching its replacement on a capacity-constrained NodePool (ALPHA).
+    terminateFirstDrift: false
+    # -- Allows repair to terminate an unhealthy node before launching its replacement on a capacity-constrained NodePool (ALPHA). Requires nodeRepair.
+    terminateFirstRepair: false
+    # -- Enables management of pod-deletion-cost annotations to prefer consolidatable nodes during ReplicaSet scale-down (ALPHA).
+    podDeletionCostManagement: false
   # -- How the Karpenter scheduler should treat preferences. Preferences include preferredDuringSchedulingIgnoreDuringExecution
   # -- VSphere zone
   zone: ""
