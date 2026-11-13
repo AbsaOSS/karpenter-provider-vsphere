@@ -2,7 +2,6 @@ package cloudprovider
 
 import (
 	"context"
-	"errors"
 
 	"github.com/samber/lo"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -14,9 +13,8 @@ import (
 
 func (c *CloudProvider) isNodeClassDrifted(ctx context.Context, nodeClaim *karpv1.NodeClaim, _ *karpv1.NodePool, nodeClass *v1alpha1.VsphereNodeClass) (cloudprovider.DriftReason, error) {
 	if drifted := c.staticFieldsDrifted(nodeClaim, nodeClass); drifted != "" {
-		err := errors.New("current node claim is drifted")
-		log.FromContext(ctx).Error(err, "drifted", drifted)
-		return drifted, err
+		log.FromContext(ctx).Info("node claim has drifted", "reason", drifted)
+		return drifted, nil
 	}
 	return "", nil
 }

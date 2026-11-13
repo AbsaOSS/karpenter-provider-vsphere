@@ -121,6 +121,15 @@ func TestCloudProviderCreate_ChoosesMemoryOptimizedFamily(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, created)
 
+	assert.Equal(t,
+		class.Hash(),
+		created.Annotations[v1alpha1.AnnotationVsphereNodeClassHash],
+	)
+	assert.Equal(t,
+		v1alpha1.VsphereNodeClassHashVersion,
+		created.Annotations[v1alpha1.AnnotationVsphereNodeClassHashVersion],
+	)
+
 	instanceType := created.Labels[corev1.LabelInstanceTypeStable]
 	require.NotEmpty(t, instanceType, "expected the instance-type label to be set on the created NodeClaim")
 
