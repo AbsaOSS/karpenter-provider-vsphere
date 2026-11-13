@@ -57,6 +57,7 @@ func (c *CloudProvider) GetSupportedNodeClasses() []status.Object {
 func (c *CloudProvider) Reboot(ctx context.Context, claim *karpv1.NodeClaim, operationID string) error {
 	return cloudprovider.NewNodeRebootNotImplementedError()
 }
+
 func New(instanceProvider instance.Provider, kubeClient client.Client, kwokInstanceTypesProvider kwok.KwokInstanceTypesProvider) *CloudProvider {
 	return &CloudProvider{
 		instanceProvider:          instanceProvider,
@@ -102,6 +103,9 @@ func (c *CloudProvider) Create(ctx context.Context, nodeClaim *karpv1.NodeClaim)
 	}
 	claim := c.instanceToNodeClaim(inst, instanceType)
 
+	claim.Annotations[v1alpha1.AnnotationVsphereNodeClassHash] = nodeClass.Hash()
+	claim.Annotations[v1alpha1.AnnotationVsphereNodeClassHashVersion] = v1alpha1.VsphereNodeClassHashVersion
+
 	return claim, nil
 }
 
@@ -125,7 +129,7 @@ func (c *CloudProvider) instanceToNodeClaim(i *instance.Instance, instanceType *
 	}
 	labels[karpv1.CapacityTypeLabelKey] = karpv1.CapacityTypeOnDemand
 
-	//TODO: Figure out TopologyZone label
+	// TODO: Figure out TopologyZone label
 	labels[corev1.LabelTopologyZone] = i.Tags[corev1.LabelTopologyZone]
 
 	if v, ok := i.Tags[karpv1.NodePoolLabelKey]; ok {
@@ -219,6 +223,7 @@ func (c *CloudProvider) resolveNodePoolFromInstance(ctx context.Context, instanc
 
 	return &nodePool, nil
 }
+
 func (c *CloudProvider) RepairPolicies() []cloudprovider.RepairPolicy {
 	return []cloudprovider.RepairPolicy{
 		// Supported Kubelet Node Conditions
