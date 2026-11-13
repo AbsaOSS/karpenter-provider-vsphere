@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.3.1](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v3.3.0...v3.3.1) (2026-11-13)
+
+
+### Bug Fixes
+
+* propagate nodeclass hash annotations and correct drift detection ([7cb0b8b](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/7cb0b8b21e4b08c8823aebd2753fa4f496ccb5a3))
+
 ## [3.3.0](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v3.2.4...v3.3.0) (2026-11-11)
 
 
