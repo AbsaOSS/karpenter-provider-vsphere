@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.3.2](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v3.3.1...v3.3.2) (2026-11-14)
+
+
+### Miscellaneous Chores
+
+* **deps:** update module go.opentelemetry.io/otel/trace to v1.47.0 [security] ([#141](https://github.com/AbsaOSS/karpenter-provider-vsphere/issues/141)) ([c8b9896](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/c8b98965fb958f2e402ade7535b62c97b22c55a0))
+
 ## [3.3.1](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v3.3.0...v3.3.1) (2026-11-13)
 
 
