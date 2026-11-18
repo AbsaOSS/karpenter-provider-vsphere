@@ -57,6 +57,7 @@ func main() {
 			vsphereCloudProvider,
 			op.InstanceProvider,
 			op.KubernetesVersionProvider,
+			op.FinderProvider,
 			op.InClusterKubernetesInterface,
 		)...).
 		Start(ctx)

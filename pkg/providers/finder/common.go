@@ -44,13 +44,32 @@ func (p *Provider) ResolveNetwork(ctx context.Context, selector v1alpha1.Network
 }
 
 func (p *Provider) ResolveImage(ctx context.Context, selector v1alpha1.ImageSelectorTerm) (*object.VirtualMachine, error) {
+	if len(selector.Tags) == 0 && selector.Pattern == "" {
+		return nil, fmt.Errorf("failed to resolve image")
+	}
+	var image *object.VirtualMachine
+	var err error
+
+	if err := p.Session.EnsureValid(ctx); err != nil {
+		return nil, fmt.Errorf("image resolver: failed to ensure vsphere session is valid: %w", err)
+	}
+
 	if len(selector.Tags) > 0 {
-		return p.ImageByTag(ctx, selector.Tags)
+		image, err = p.ImageByTag(ctx, selector.Tags)
+	} else {
+		image, err = p.ImageByPattern(ctx, selector.Pattern)
 	}
-	if selector.Pattern != "" {
-		return p.ImageByPattern(ctx, selector.Pattern)
+	if err != nil {
+		return nil, fmt.Errorf("image resolver: failed to resolve image: %w", err)
 	}
-	return nil, fmt.Errorf("failed to resolve image")
+	// Tag lookups return references without an inventory path.
+	if image.InventoryPath == "" {
+		image.InventoryPath, err = find.InventoryPath(ctx, image.Client(), image.Reference())
+		if err != nil {
+			return nil, fmt.Errorf("image resolver: failed to resolve image inventory path: %w", err)
+		}
+	}
+	return image, nil
 }
 
 func (p *Provider) ResolveFolder(ctx context.Context) (*object.Folder, error) {

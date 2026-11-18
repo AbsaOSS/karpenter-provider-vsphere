@@ -51,21 +51,13 @@ func (p *DefaultProvider) getNetworkSpecs(ctx context.Context, networkName objec
 	}), err
 }
 
-func (p *DefaultProvider) GetDeviceSpec(ctx context.Context, class *v1alpha1.VsphereNodeClass, diskSize int64) ([]types.BaseVirtualDeviceConfigSpec, error) {
+func (p *DefaultProvider) GetDeviceSpec(ctx context.Context, class *v1alpha1.VsphereNodeClass, devList object.VirtualDeviceList, diskSize int64) ([]types.BaseVirtualDeviceConfigSpec, error) {
 	var deviceChange []types.BaseVirtualDeviceConfigSpec
-	vmTemplate, err := p.Finder.ResolveImage(ctx, class.Spec.ImageSelector)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find VM template: %w", err)
-	}
 	network, err := p.Finder.ResolveNetwork(ctx, class.Spec.NetworkSelector)
 	if err != nil {
 		return nil, err
 	}
 
-	devList, err := vmTemplate.Device(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get device list from VM template: %w", err)
-	}
 	disks := devList.SelectByType((*types.VirtualDisk)(nil))
 	if len(disks) == 0 {
 		return nil, fmt.Errorf("invalid disk count: %d", len(disks))

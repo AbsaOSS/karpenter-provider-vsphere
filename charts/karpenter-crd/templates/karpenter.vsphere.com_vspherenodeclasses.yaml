@@ -244,6 +244,10 @@ spec:
                   - type
                   type: object
                 type: array
+              imageTemplateID:
+                description: ImageTemplateID is the resolved vSphere inventory path
+                  used to clone virtual machines.
+                type: string
               kubernetesVersion:
                 type: string
             type: object

@@ -12,7 +12,11 @@ import (
 )
 
 func (c *CloudProvider) isNodeClassDrifted(ctx context.Context, nodeClaim *karpv1.NodeClaim, _ *karpv1.NodePool, nodeClass *v1alpha1.VsphereNodeClass) (cloudprovider.DriftReason, error) {
-	if drifted := c.staticFieldsDrifted(nodeClaim, nodeClass); drifted != "" {
+	drifted := c.staticFieldsDrifted(nodeClaim, nodeClass)
+	if nodeClass.Status.ImageTemplateID != "" && nodeClaim.Status.ImageID != nodeClass.Status.ImageTemplateID {
+		drifted = NodeImageDrift
+	}
+	if drifted != "" {
 		log.FromContext(ctx).Info("node claim has drifted", "reason", drifted)
 		return drifted, nil
 	}

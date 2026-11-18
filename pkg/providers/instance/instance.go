@@ -73,7 +73,11 @@ func (p *DefaultProvider) GenerateVMSpec(ctx context.Context, class *v1alpha1.Vs
 		return nil, fmt.Errorf("failed to generate target for VM: %w", err)
 	}
 
-	diskAndNet, err := p.GetDeviceSpec(ctx, class, class.Spec.DiskSize)
+	devList, err := image.Device(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get device list from image: %w", err)
+	}
+	diskAndNet, err := p.GetDeviceSpec(ctx, class, devList, class.Spec.DiskSize)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get device spec: %w", err)
 	}
@@ -174,7 +178,7 @@ func (p *DefaultProvider) Create(
 	if err != nil {
 		return nil, nil, err
 	}
-	vmTemplate, err := p.Finder.ResolveImage(ctx, class.Spec.ImageSelector)
+	vmTemplate, err := p.Finder.VMByName(ctx, class.GetImageTemplateID())
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to find VM template: %w", err)
 	}

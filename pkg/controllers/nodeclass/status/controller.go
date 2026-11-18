@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/finder"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/kubernetesversion"
 	"github.com/awslabs/operatorpkg/reasonable"
 	"go.uber.org/multierr"
@@ -27,17 +28,19 @@ type Controller struct {
 	kubeClient client.Client
 
 	kubernetesVersion *KubernetesVersionReconciler
+	imageTemplateID   *VsphereImageReconciler
 }
 
 func NewController(
 	kubeClient client.Client,
 	kubernetesVersionProvider kubernetesversion.KubernetesVersionProvider,
+	vsphereFinder *finder.Provider,
 	inClusterKubernetesInterface kubernetes.Interface,
 ) *Controller {
 	return &Controller{
-		kubeClient: kubeClient,
-
+		kubeClient:        kubeClient,
 		kubernetesVersion: NewKubernetesVersionReconciler(kubernetesVersionProvider),
+		imageTemplateID:   NewVsphereImageReconciler(vsphereFinder),
 	}
 }
 
@@ -57,6 +60,7 @@ func (c *Controller) Reconcile(ctx context.Context, nodeClass *v1alpha1.VsphereN
 	var errs error
 	for _, reconciler := range []reconciler{
 		c.kubernetesVersion,
+		c.imageTemplateID,
 	} {
 		res, err := reconciler.Reconcile(ctx, nodeClass)
 		errs = multierr.Append(errs, err)

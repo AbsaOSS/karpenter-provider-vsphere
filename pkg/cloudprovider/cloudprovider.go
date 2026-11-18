@@ -36,6 +36,7 @@ const (
 	NodeClassReadinessUnknownReason                              = "NodeClassReadinessUnknown"
 	InstanceTypeResolutionFailedReason                           = "InstanceTypeResolutionFailed"
 	CreateInstanceFailedReason                                   = "CreateInstanceFailed"
+	NodeImageDrift                     cloudprovider.DriftReason = "NodeImageDrift"
 	NodeClassDrift                     cloudprovider.DriftReason = "NodeClassDrift"
 )
 
