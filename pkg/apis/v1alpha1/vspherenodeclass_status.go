@@ -7,6 +7,9 @@ import (
 )
 
 type VsphereNodeClassStatus struct {
+	// ImageTemplateID is the resolved vSphere inventory path used to clone virtual machines.
+	// +optional
+	ImageTemplateID string `json:"imageTemplateID,omitempty"`
 	// +optional
 	KubernetesVersion string `json:"kubernetesVersion,omitempty"`
 	// +optional
@@ -16,6 +19,7 @@ type VsphereNodeClassStatus struct {
 func (nc *VsphereNodeClass) StatusConditions(...status.ForOption) status.ConditionSet {
 	conds := []string{
 		ConditionTypeKubernetesVersionReady,
+		ConditionTypeImageReady,
 	}
 	return status.NewReadyConditions(conds...).For(nc)
 }
@@ -26,6 +30,10 @@ func (nc *VsphereNodeClass) GetConditions() []status.Condition {
 
 func (nc *VsphereNodeClass) SetConditions(conditions []status.Condition) {
 	nc.Status.Conditions = conditions
+}
+
+func (nc *VsphereNodeClass) GetImageTemplateID() string {
+	return nc.Status.ImageTemplateID
 }
 
 func (nc *VsphereNodeClass) GetKubernetesVersion() (string, error) {

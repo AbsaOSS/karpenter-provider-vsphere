@@ -10,6 +10,7 @@ import (
 
 const (
 	ConditionTypeKubernetesVersionReady = "KubernetesVersionReady"
+	ConditionTypeImageReady             = "ImageReady"
 	VsphereNodeClassHashVersion         = "v1"
 )
 

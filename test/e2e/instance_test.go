@@ -10,6 +10,7 @@ import (
 	"github.com/absaoss/karpenter-provider-vsphere/internal/test/vcsim"
 	"github.com/absaoss/karpenter-provider-vsphere/internal/testutil"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
+	nodeclassstatus "github.com/absaoss/karpenter-provider-vsphere/pkg/controllers/nodeclass/status"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/operator/options"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/finder"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/instance"
@@ -102,6 +103,8 @@ func setupInstanceProvider(t *testing.T) (*instance.DefaultProvider, *v1alpha1.V
 			},
 		},
 	}
+	_, err = nodeclassstatus.NewVsphereImageReconciler(finderProvider).Reconcile(ctx, class)
+	require.NoError(t, err)
 
 	ctx = options.ToContext(ctx, &options.Options{
 		ClusterName:     InstanceTestClusterName,
@@ -172,6 +175,16 @@ func TestCreate_UsesFirstInstanceType(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, InstanceTypeName, inst.Type)
 	assert.Equal(t, InstanceTypeName, instancetype.Name)
+}
+
+func TestCreate_UsesResolvedImageTemplateID(t *testing.T) {
+	provider, class, ctx := setupInstanceProvider(t)
+	resolvedPath := class.Status.ImageTemplateID
+	class.Spec.ImageSelector.Pattern = "does-not-exist"
+
+	created, _, err := provider.Create(ctx, class, testNodeClaim("resolved-image"), testInstanceTypes())
+	require.NoError(t, err)
+	require.Equal(t, resolvedPath, created.Image)
 }
 
 // disk.EnableUUID must be true on cloned VMs, otherwise CSI cannot attach

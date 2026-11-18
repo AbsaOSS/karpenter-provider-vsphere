@@ -19,6 +19,7 @@ import (
 	nodeclassstatus "github.com/absaoss/karpenter-provider-vsphere/pkg/controllers/nodeclass/status"
 	nodeclasstermination "github.com/absaoss/karpenter-provider-vsphere/pkg/controllers/nodeclass/termination"
 
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/finder"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/instance"
 	"github.com/absaoss/karpenter-provider-vsphere/pkg/providers/kubernetesversion"
 )
@@ -31,11 +32,12 @@ func NewControllers(
 	cloudProvider cloudprovider.CloudProvider,
 	instanceProvider instance.Provider,
 	kubernetesVersionProvider kubernetesversion.KubernetesVersionProvider,
+	vsphereFinder *finder.Provider,
 	inClusterKubernetesInterface kubernetes.Interface,
 ) []controller.Controller {
 	controllers := []controller.Controller{
 		nodeclasshash.NewController(kubeClient),
-		nodeclassstatus.NewController(kubeClient, kubernetesVersionProvider, inClusterKubernetesInterface),
+		nodeclassstatus.NewController(kubeClient, kubernetesVersionProvider, vsphereFinder, inClusterKubernetesInterface),
 		nodeclasstermination.NewController(kubeClient, recorder),
 
 		nodeclaimgarbagecollection.NewVirtualMachine(kubeClient, cloudProvider),
