@@ -17,12 +17,17 @@ import (
 	coreoptions "sigs.k8s.io/karpenter/pkg/operator/options"
 )
 
+const RedactedPassword = "redacted"
+
 func main() {
 	ctx := injection.WithOptionsOrDie(context.Background(), coreoptions.Injectables...)
 	logger := zapr.NewLogger(logging.NewLogger(ctx, "controller"))
 
 	ctx, op := operator.NewOperator(coreoperator.NewOperator())
-	logger.V(0).Info("Initial options", "options", options.FromContext(ctx).String())
+	logOpts := *options.FromContext(ctx)
+	logOpts.VspherePassword = RedactedPassword
+	logOpts.JoinToken = RedactedPassword
+	logger.V(0).Info("Initial options", "options", logOpts.String())
 
 	vsphereCloudProvider := cloudprovider.New(
 		op.InstanceProvider,
