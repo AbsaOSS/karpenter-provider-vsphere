@@ -1,5 +1,24 @@
 # Changelog
 
+## [3.4.0](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v3.3.1...v3.4.0) (2026-11-21)
+
+
+### Features
+
+* Resolve image within NodeClass reconcile ([7bb06c2](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/7bb06c251a74d9a55b5ceed3de69ea7956c70213))
+
+
+### Bug Fixes
+
+* **deps:** update module sigs.k8s.io/controller-runtime to v0.25.3 ([#143](https://github.com/AbsaOSS/karpenter-provider-vsphere/issues/143)) ([5e90729](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/5e9072938af9c2daf49ba0ace2f42c9c7a00ca8d))
+* don't expose password to the log ([bcba587](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/bcba5875e4c4e67797d14ebbf0416c57fce8362a))
+
+
+### Miscellaneous Chores
+
+* **deps:** update actions/setup-go action to v7.1.0 ([a874daf](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/a874daf77358fee126f9b42c10cbdf53b413db4d))
+* **deps:** update module go.opentelemetry.io/otel/trace to v1.47.0 [security] ([#141](https://github.com/AbsaOSS/karpenter-provider-vsphere/issues/141)) ([c8b9896](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/c8b98965fb958f2e402ade7535b62c97b22c55a0))
+
 ## [3.3.1](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v3.3.0...v3.3.1) (2026-11-13)
 
 
