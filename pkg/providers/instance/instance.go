@@ -103,22 +103,19 @@ func (p *DefaultProvider) GenerateVMSpec(ctx context.Context, class *v1alpha1.Vs
 	}, nil
 }
 
-func (p *DefaultProvider) GenerateTarget(ctx context.Context, class *v1alpha1.VsphereNodeClass) (*types.VirtualMachineRelocateSpec, error) {
-	var relocationSpec types.VirtualMachineRelocateSpec
-	pool, err := p.Finder.ResolveResourcePool(ctx, class.Spec.PoolSelector)
+func (p *DefaultProvider) GenerateTarget(_ context.Context, class *v1alpha1.VsphereNodeClass) (*types.VirtualMachineRelocateSpec, error) {
+	pool, err := class.GetResourcePool()
 	if err != nil {
 		return nil, err
 	}
-	poolRef := pool.Reference()
-	relocationSpec.Pool = &poolRef
-	datastore, err := p.Finder.ResolveDatastore(ctx, class.Spec.DatastoreSelector)
+	datastore, err := class.GetDatastore()
 	if err != nil {
 		return nil, err
 	}
-	dsRef := datastore.Reference()
-	relocationSpec.Datastore = &dsRef
-
-	return &relocationSpec, nil
+	return &types.VirtualMachineRelocateSpec{
+		Pool:      &types.ManagedObjectReference{Type: pool.Kind, Value: pool.Name},
+		Datastore: &types.ManagedObjectReference{Type: datastore.Kind, Value: datastore.Name},
+	}, nil
 }
 
 func (p *DefaultProvider) Create(

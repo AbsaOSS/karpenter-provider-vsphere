@@ -1,0 +1,90 @@
+package status
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
+	"github.com/stretchr/testify/require"
+	"github.com/vmware/govmomi/object"
+	"github.com/vmware/govmomi/vim25/types"
+)
+
+type fakePlacementProvider struct {
+	err error
+}
+
+func (p fakePlacementProvider) ResolveResourcePool(context.Context, v1alpha1.ResPoolSelctorTerm) (*object.ResourcePool, error) {
+	if p.err != nil {
+		return nil, p.err
+	}
+	return object.NewResourcePool(nil, types.ManagedObjectReference{Type: "ResourcePool", Value: "resgroup-1"}), nil
+}
+
+func (p fakePlacementProvider) ResolveDatastore(context.Context, v1alpha1.DatastoreSelectorTerm) (*object.Datastore, error) {
+	if p.err != nil {
+		return nil, p.err
+	}
+	return object.NewDatastore(nil, types.ManagedObjectReference{Type: "Datastore", Value: "datastore-1"}), nil
+}
+
+func TestPlacementReconcile(t *testing.T) {
+	nodeClass := &v1alpha1.VsphereNodeClass{}
+	_, err := NewResourcePoolReconciler(fakePlacementProvider{}).Reconcile(context.Background(), nodeClass)
+	require.NoError(t, err)
+	_, err = NewDatastoreReconciler(fakePlacementProvider{}).Reconcile(context.Background(), nodeClass)
+	require.NoError(t, err)
+
+	require.Equal(t, "ResourcePool", nodeClass.Status.ResourcePool.Kind)
+	require.Equal(t, "resgroup-1", nodeClass.Status.ResourcePool.Name)
+	require.Equal(t, "Datastore", nodeClass.Status.Datastore.Kind)
+	require.Equal(t, "datastore-1", nodeClass.Status.Datastore.Name)
+	require.True(t, nodeClass.StatusConditions().Get(v1alpha1.ConditionTypeResourcePoolReady).IsTrue())
+	require.True(t, nodeClass.StatusConditions().Get(v1alpha1.ConditionTypeDatastoreReady).IsTrue())
+}
+
+func TestPlacementReconcileFailureClearsStatus(t *testing.T) {
+	nodeClass := &v1alpha1.VsphereNodeClass{}
+	_, err := NewResourcePoolReconciler(fakePlacementProvider{}).Reconcile(context.Background(), nodeClass)
+	require.NoError(t, err)
+	_, err = NewDatastoreReconciler(fakePlacementProvider{}).Reconcile(context.Background(), nodeClass)
+	require.NoError(t, err)
+
+	failing := fakePlacementProvider{err: errors.New("boom")}
+	_, err = NewResourcePoolReconciler(failing).Reconcile(context.Background(), nodeClass)
+	require.Error(t, err)
+	_, err = NewDatastoreReconciler(failing).Reconcile(context.Background(), nodeClass)
+	require.Error(t, err)
+
+	require.Nil(t, nodeClass.Status.ResourcePool)
+	require.Nil(t, nodeClass.Status.Datastore)
+	require.True(t, nodeClass.StatusConditions().Get(v1alpha1.ConditionTypeResourcePoolReady).IsFalse())
+	require.True(t, nodeClass.StatusConditions().Get(v1alpha1.ConditionTypeDatastoreReady).IsFalse())
+}
+
+type fakeNetworkProvider struct {
+	err error
+}
+
+func (p fakeNetworkProvider) ResolveNetwork(context.Context, v1alpha1.NetworkSelectorTerm) (*object.NetworkReference, error) {
+	if p.err != nil {
+		return nil, p.err
+	}
+	var n object.NetworkReference = object.NewNetwork(nil, types.ManagedObjectReference{Type: "Network", Value: "network-1"})
+	return &n, nil
+}
+
+func TestNetworkReconcile(t *testing.T) {
+	nodeClass := &v1alpha1.VsphereNodeClass{}
+	_, err := NewNetworkReconciler(fakeNetworkProvider{}).Reconcile(context.Background(), nodeClass)
+	require.NoError(t, err)
+	require.Equal(t, "Network", nodeClass.Status.Network.Kind)
+	require.Equal(t, "network-1", nodeClass.Status.Network.Name)
+	require.True(t, nodeClass.StatusConditions().Get(v1alpha1.ConditionTypeNetworkReady).IsTrue())
+
+	_, err = NewNetworkReconciler(fakeNetworkProvider{err: errors.New("boom")}).Reconcile(context.Background(), nodeClass)
+	require.Error(t, err)
+	require.Nil(t, nodeClass.Status.Network)
+	require.True(t, nodeClass.StatusConditions().Get(v1alpha1.ConditionTypeNetworkReady).IsFalse())
+}

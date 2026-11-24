@@ -1,0 +1,91 @@
+package status
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/absaoss/karpenter-provider-vsphere/pkg/apis/v1alpha1"
+	"github.com/vmware/govmomi/object"
+	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+)
+
+type resourcePoolProvider interface {
+	ResolveResourcePool(context.Context, v1alpha1.ResPoolSelctorTerm) (*object.ResourcePool, error)
+}
+
+type datastoreProvider interface {
+	ResolveDatastore(context.Context, v1alpha1.DatastoreSelectorTerm) (*object.Datastore, error)
+}
+
+type networkProvider interface {
+	ResolveNetwork(context.Context, v1alpha1.NetworkSelectorTerm) (*object.NetworkReference, error)
+}
+
+type ResourcePoolReconciler struct {
+	provider resourcePoolProvider
+}
+
+func NewResourcePoolReconciler(provider resourcePoolProvider) *ResourcePoolReconciler {
+	return &ResourcePoolReconciler{provider: provider}
+}
+
+func (r *ResourcePoolReconciler) Reconcile(ctx context.Context, nodeClass *v1alpha1.VsphereNodeClass) (reconcile.Result, error) {
+	pool, err := r.provider.ResolveResourcePool(ctx, nodeClass.Spec.PoolSelector)
+	if err != nil {
+		nodeClass.Status.ResourcePool = nil
+		nodeClass.StatusConditions().SetFalse(v1alpha1.ConditionTypeResourcePoolReady, "ResourcePoolResolutionFailed", err.Error())
+		return reconcile.Result{}, fmt.Errorf("resolving resource pool, %w", err)
+	}
+	nodeClass.Status.ResourcePool = objectReference(pool.Reference().Type, pool.Reference().Value)
+	nodeClass.StatusConditions().SetTrue(v1alpha1.ConditionTypeResourcePoolReady)
+	return reconcile.Result{}, nil
+}
+
+type DatastoreReconciler struct {
+	provider datastoreProvider
+}
+
+func NewDatastoreReconciler(provider datastoreProvider) *DatastoreReconciler {
+	return &DatastoreReconciler{provider: provider}
+}
+
+func (r *DatastoreReconciler) Reconcile(ctx context.Context, nodeClass *v1alpha1.VsphereNodeClass) (reconcile.Result, error) {
+	ds, err := r.provider.ResolveDatastore(ctx, nodeClass.Spec.DatastoreSelector)
+	if err != nil {
+		nodeClass.Status.Datastore = nil
+		nodeClass.StatusConditions().SetFalse(v1alpha1.ConditionTypeDatastoreReady, "DatastoreResolutionFailed", err.Error())
+		return reconcile.Result{}, fmt.Errorf("resolving datastore, %w", err)
+	}
+	nodeClass.Status.Datastore = objectReference(ds.Reference().Type, ds.Reference().Value)
+	nodeClass.StatusConditions().SetTrue(v1alpha1.ConditionTypeDatastoreReady)
+	return reconcile.Result{}, nil
+}
+
+type NetworkReconciler struct {
+	provider networkProvider
+}
+
+func NewNetworkReconciler(provider networkProvider) *NetworkReconciler {
+	return &NetworkReconciler{provider: provider}
+}
+
+func (r *NetworkReconciler) Reconcile(ctx context.Context, nodeClass *v1alpha1.VsphereNodeClass) (reconcile.Result, error) {
+	network, err := r.provider.ResolveNetwork(ctx, nodeClass.Spec.NetworkSelector)
+	if err == nil && (network == nil || *network == nil) {
+		err = fmt.Errorf("resolved network is empty")
+	}
+	if err != nil {
+		nodeClass.Status.Network = nil
+		nodeClass.StatusConditions().SetFalse(v1alpha1.ConditionTypeNetworkReady, "NetworkResolutionFailed", err.Error())
+		return reconcile.Result{}, fmt.Errorf("resolving network, %w", err)
+	}
+	ref := (*network).Reference()
+	nodeClass.Status.Network = objectReference(ref.Type, ref.Value)
+	nodeClass.StatusConditions().SetTrue(v1alpha1.ConditionTypeNetworkReady)
+	return reconcile.Result{}, nil
+}
+
+func objectReference(kind, id string) *corev1.ObjectReference {
+	return &corev1.ObjectReference{Kind: kind, Name: id}
+}

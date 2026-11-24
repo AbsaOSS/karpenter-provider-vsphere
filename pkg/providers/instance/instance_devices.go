@@ -53,9 +53,13 @@ func (p *DefaultProvider) getNetworkSpecs(ctx context.Context, networkName objec
 
 func (p *DefaultProvider) GetDeviceSpec(ctx context.Context, class *v1alpha1.VsphereNodeClass, devList object.VirtualDeviceList, diskSize int64) ([]types.BaseVirtualDeviceConfigSpec, error) {
 	var deviceChange []types.BaseVirtualDeviceConfigSpec
-	network, err := p.Finder.ResolveNetwork(ctx, class.Spec.NetworkSelector)
+	netRef, err := class.GetNetwork()
 	if err != nil {
 		return nil, err
+	}
+	network, ok := object.NewReference(p.Finder.Session.Vim, types.ManagedObjectReference{Type: netRef.Kind, Value: netRef.Name}).(object.NetworkReference)
+	if !ok {
+		return nil, fmt.Errorf("resolved network %s/%s is not a network", netRef.Kind, netRef.Name)
 	}
 
 	disks := devList.SelectByType((*types.VirtualDisk)(nil))
@@ -71,7 +75,7 @@ func (p *DefaultProvider) GetDeviceSpec(ctx context.Context, class *v1alpha1.Vsp
 		return nil, fmt.Errorf("error getting disk config spec for primary disk: %v", err)
 	}
 
-	netSpec, err := p.getNetworkSpecs(ctx, *network, devList)
+	netSpec, err := p.getNetworkSpecs(ctx, network, devList)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get network specs: %w", err)
 	}

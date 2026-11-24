@@ -244,12 +244,100 @@ spec:
                   - type
                   type: object
                 type: array
+              datastore:
+                description: Datastore is the resolved vSphere Datastore. Kind holds the managed object type and Name the managed object ID.
+                properties:
+                  apiVersion:
+                    description: API version of the referent.
+                    type: string
+                  fieldPath:
+                    description: If referring to a piece of an object instead of
+                      an entire object, this string should contain a valid JSON/Go
+                      field access statement.
+                    type: string
+                  kind:
+                    description: Kind of the referent.
+                    type: string
+                  name:
+                    description: Name of the referent.
+                    type: string
+                  namespace:
+                    description: Namespace of the referent.
+                    type: string
+                  resourceVersion:
+                    description: Specific resourceVersion to which this reference
+                      is made, if any.
+                    type: string
+                  uid:
+                    description: UID of the referent.
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
               imageTemplateID:
                 description: ImageTemplateID is the resolved vSphere inventory path
                   used to clone virtual machines.
                 type: string
               kubernetesVersion:
                 type: string
+              network:
+                description: Network is the resolved vSphere Network. Kind holds
+                  the managed object type and Name the managed object ID.
+                properties:
+                  apiVersion:
+                    description: API version of the referent.
+                    type: string
+                  fieldPath:
+                    description: If referring to a piece of an object instead of
+                      an entire object, this string should contain a valid JSON/Go
+                      field access statement.
+                    type: string
+                  kind:
+                    description: Kind of the referent.
+                    type: string
+                  name:
+                    description: Name of the referent.
+                    type: string
+                  namespace:
+                    description: Namespace of the referent.
+                    type: string
+                  resourceVersion:
+                    description: Specific resourceVersion to which this reference
+                      is made, if any.
+                    type: string
+                  uid:
+                    description: UID of the referent.
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
+              resourcePool:
+                description: ResourcePool is the resolved vSphere ResourcePool. Kind holds the managed object type and Name the managed object ID.
+                properties:
+                  apiVersion:
+                    description: API version of the referent.
+                    type: string
+                  fieldPath:
+                    description: If referring to a piece of an object instead of
+                      an entire object, this string should contain a valid JSON/Go
+                      field access statement.
+                    type: string
+                  kind:
+                    description: Kind of the referent.
+                    type: string
+                  name:
+                    description: Name of the referent.
+                    type: string
+                  namespace:
+                    description: Namespace of the referent.
+                    type: string
+                  resourceVersion:
+                    description: Specific resourceVersion to which this reference
+                      is made, if any.
+                    type: string
+                  uid:
+                    description: UID of the referent.
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
             type: object
         type: object
     served: true

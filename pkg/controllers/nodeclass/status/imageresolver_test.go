@@ -52,6 +52,11 @@ func TestImageReconcile(t *testing.T) {
 		require.False(t, nodeClass.StatusConditions().Get(operatorstatus.ConditionReady).IsTrue())
 
 		nodeClass.StatusConditions().SetTrue(v1alpha1.ConditionTypeKubernetesVersionReady)
+		require.False(t, nodeClass.StatusConditions().Get(operatorstatus.ConditionReady).IsTrue())
+
+		nodeClass.StatusConditions().SetTrue(v1alpha1.ConditionTypeResourcePoolReady)
+		nodeClass.StatusConditions().SetTrue(v1alpha1.ConditionTypeDatastoreReady)
+		nodeClass.StatusConditions().SetTrue(v1alpha1.ConditionTypeNetworkReady)
 		require.True(t, nodeClass.StatusConditions().Get(operatorstatus.ConditionReady).IsTrue())
 
 		provider.image.InventoryPath = "/DC0/vm/templates/ubuntu-new"

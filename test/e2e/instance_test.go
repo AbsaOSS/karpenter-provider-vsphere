@@ -105,6 +105,12 @@ func setupInstanceProvider(t *testing.T) (*instance.DefaultProvider, *v1alpha1.V
 	}
 	_, err = nodeclassstatus.NewVsphereImageReconciler(finderProvider).Reconcile(ctx, class)
 	require.NoError(t, err)
+	_, err = nodeclassstatus.NewResourcePoolReconciler(finderProvider).Reconcile(ctx, class)
+	require.NoError(t, err)
+	_, err = nodeclassstatus.NewDatastoreReconciler(finderProvider).Reconcile(ctx, class)
+	require.NoError(t, err)
+	_, err = nodeclassstatus.NewNetworkReconciler(finderProvider).Reconcile(ctx, class)
+	require.NoError(t, err)
 
 	ctx = options.ToContext(ctx, &options.Options{
 		ClusterName:     InstanceTestClusterName,
@@ -185,6 +191,18 @@ func TestCreate_UsesResolvedImageTemplateID(t *testing.T) {
 	created, _, err := provider.Create(ctx, class, testNodeClaim("resolved-image"), testInstanceTypes())
 	require.NoError(t, err)
 	require.Equal(t, resolvedPath, created.Image)
+}
+
+func TestCreate_UsesResolvedPlacement(t *testing.T) {
+	provider, class, ctx := setupInstanceProvider(t)
+	require.NotNil(t, class.Status.ResourcePool)
+	require.NotNil(t, class.Status.Datastore)
+	class.Spec.PoolSelector.Name = "does-not-exist"
+	class.Spec.DatastoreSelector.Name = "does-not-exist"
+	class.Spec.NetworkSelector.Name = "does-not-exist"
+
+	_, _, err := provider.Create(ctx, class, testNodeClaim("resolved-placement"), testInstanceTypes())
+	require.NoError(t, err)
 }
 
 // disk.EnableUUID must be true on cloned VMs, otherwise CSI cannot attach
