@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.5.0](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v3.4.0...v3.5.0) (2026-11-26)
+
+
+### Features
+
+* Resovle vsphere resources earlier ([#148](https://github.com/AbsaOSS/karpenter-provider-vsphere/issues/148)) ([952551e](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/952551e030ac6858ac7e603a5c569e52272e92ba))
+
+
+### Bug Fixes
+
+* **deps:** update kubernetes dependencies to v0.37.3 ([#152](https://github.com/AbsaOSS/karpenter-provider-vsphere/issues/152)) ([2dacac5](https://github.com/AbsaOSS/karpenter-provider-vsphere/commit/2dacac56c1711db3a4a8dbe41299e476c278abee))
+
 ## [3.4.0](https://github.com/AbsaOSS/karpenter-provider-vsphere/compare/v3.3.1...v3.4.0) (2026-11-21)
 
 
