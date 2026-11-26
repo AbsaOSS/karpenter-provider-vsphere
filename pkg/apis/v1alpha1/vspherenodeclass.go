@@ -11,6 +11,9 @@ import (
 const (
 	ConditionTypeKubernetesVersionReady = "KubernetesVersionReady"
 	ConditionTypeImageReady             = "ImageReady"
+	ConditionTypeResourcePoolReady      = "ResourcePoolReady"
+	ConditionTypeDatastoreReady         = "DatastoreReady"
+	ConditionTypeNetworkReady           = "NetworkReady"
 	VsphereNodeClassHashVersion         = "v1"
 )
 

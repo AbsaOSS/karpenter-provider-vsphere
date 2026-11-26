@@ -29,6 +29,9 @@ type Controller struct {
 
 	kubernetesVersion *KubernetesVersionReconciler
 	imageTemplateID   *VsphereImageReconciler
+	resourcePool      *ResourcePoolReconciler
+	datastore         *DatastoreReconciler
+	network           *NetworkReconciler
 }
 
 func NewController(
@@ -41,6 +44,9 @@ func NewController(
 		kubeClient:        kubeClient,
 		kubernetesVersion: NewKubernetesVersionReconciler(kubernetesVersionProvider),
 		imageTemplateID:   NewVsphereImageReconciler(vsphereFinder),
+		resourcePool:      NewResourcePoolReconciler(vsphereFinder),
+		datastore:         NewDatastoreReconciler(vsphereFinder),
+		network:           NewNetworkReconciler(vsphereFinder),
 	}
 }
 
@@ -61,6 +67,9 @@ func (c *Controller) Reconcile(ctx context.Context, nodeClass *v1alpha1.VsphereN
 	for _, reconciler := range []reconciler{
 		c.kubernetesVersion,
 		c.imageTemplateID,
+		c.resourcePool,
+		c.datastore,
+		c.network,
 	} {
 		res, err := reconciler.Reconcile(ctx, nodeClass)
 		errs = multierr.Append(errs, err)
