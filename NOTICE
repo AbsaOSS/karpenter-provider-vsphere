@@ -1,0 +1,13 @@
+Karpenter Provider for vSphere
+Copyright 2025-2026 The Karpenter Provider for vSphere Contributors.
+
+The Helm chart in charts/karpenter and portions of the source code are adapted
+from the Karpenter provider for AWS.
+Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+Source: https://github.com/aws/karpenter-provider-aws
+
+The files pkg/controllers/nodeclass/status/imageresolver.go and
+pkg/controllers/nodeclass/status/kubernetesversion.go include portions from the
+Karpenter provider for Azure. Their source-level notices identify Microsoft
+Corporation as the copyright holder.
+Source: https://github.com/Azure/karpenter-provider-azure

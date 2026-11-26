@@ -1,0 +1,8 @@
+# Ignore everything
+*
+
+# Add license headers to Go source files.
+!*.go
+
+# ...even if they are in subdirectories
+!*/

@@ -4,6 +4,11 @@ Karpenter provider for VMWare Vsphere
 
 # !!!Early alpha - NOT for Production use!!!
 
+## License
+
+This project is licensed under the Apache License 2.0. See [LICENSE](LICENSE)
+for the full license text and [NOTICE](NOTICE) for upstream attributions.
+
 ## About
 This repository is intended to run together with [cloud-provider-vsphere](https://github.com/AbsaOSS/cloud-provider-vsphere) to provide a complete Karpenter implementation for vSphere environments.
 

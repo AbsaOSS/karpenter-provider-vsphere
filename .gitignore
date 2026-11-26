@@ -19,10 +19,14 @@
 !.golangci.toml
 !.golic.yaml
 !.licignore
+!.github/
+!.github/workflows/
+!.github/workflows/*.yml
 !Dockerfile
 !CODEOWNERS
 !README.md
 !LICENSE
+!NOTICE
 !renovate.json
 !docs/**/*.md
 
