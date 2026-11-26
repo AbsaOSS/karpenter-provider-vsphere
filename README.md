@@ -2,8 +2,6 @@
 
 Karpenter provider for VMWare Vsphere
 
-# !!!Early alpha - NOT for Production use!!!
-
 ## License
 
 This project is licensed under the Apache License 2.0. See [LICENSE](LICENSE)
